@@ -38,7 +38,7 @@ python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 Backend URLs:
 
 - Local machine: `http://127.0.0.1:8000/docs`
-- LAN devices: `http://10.121.35.100:8000/docs`
+- LAN devices: `http://your_ip:8000/docs`
 
 ## 4) Frontend Setup (Next.js)
 
@@ -59,7 +59,7 @@ NEXT_PUBLIC_API_BASE='http://127.0.0.1:8000' npm run dev -- --hostname 0.0.0.0 -
 Frontend URLs:
 
 - Local machine: `http://127.0.0.1:3000`
-- LAN devices: `http://10.121.35.100:3000`
+- LAN devices: `http://Your_Ip3000`
 
 ## 5) LAN Access Checklist
 
@@ -69,8 +69,8 @@ Frontend URLs:
 
 Quick test from another device browser:
 
-- `http://10.121.35.100:3000`
-- `http://10.121.35.100:8000/docs`
+- `http://Your_IP:3000`
+- `http://YOUR_IP:8000/docs`
 
 ## 6) Default Test Credentials
 
