@@ -1,0 +1,198 @@
+
+Smart Tourist Safety Monitoring System
+FULL, Mobile-First, Developer-Ready Wireframe & Spec (Hybrid IoT + Web-only)
+===========================================================================
+This is a comprehensive, carefully crafted developer specification and wireframe for the Smart Tourist Safety Monitoring System.
+It is mobile-first (tourist dashboard prioritized), local-network only, Notion-styled UI (white & black themes), uses lucide icons,
+supports en/hi localization folders, and combines web-only tracking + optional IoT (ESP32 + RFID).
+
+PLEASE READ: This document is intentionally exhaustive — landing pages for each dashboard, UI/UX components, sequence flows,
+API definitions, DB schema, security, deployment & demo scripts, testing notes, acceptance criteria, and extras to win hackathons.
+Save this file and hand it to developers as the single source of truth.
+
+CONTENTS (quick index)
+----------------------
+1. High-level goals & constraints
+2. Tech stack (frontend, backend, DB, blockchain, ML, IoT)
+3. Project layout & file/folder structure
+4. Localization strategy (en.json / hi.json)
+5. Screen-by-screen, mobile-first UI (tourist view bottom-up)
+6. Admin dashboard pages & flows (detailed)
+7. Police dashboard pages & flows (detailed)
+8. Registration & Aadhaar capture flow (camera UX specifics)
+9. Tracking, Geofencing & Map features
+10. IoT integration endpoints & device flows (ESP32 + RC522)
+11. AI / Anomaly detection design (TF.js + rules)
+12. Blockchain integration (local Ganache + Merkle fallback)
+13. Full API spec (endpoints, payloads, auth)
+14. Database schema (Postgres detailed)
+15. Real-time architecture (WebSocket channels & events)
+16. Security & privacy (auth, encryption, secrets, image handling)
+17. UI/UX design system & components (Notion-like theme)
+18. Accessibility & localization
+19. Offline & sync behavior (IndexedDB, service worker)
+20. Dev environment, scripts, Docker & local deployment
+21. Demo script for judges & test cases
+22. Acceptance criteria & success metrics
+23. Handoff checklist & docs for developers
+24. Extra win features (optional)
+25. Appendix: sample JSON translation skeletons & Mermaid flow snippet
+
+---
+
+1) HIGH-LEVEL GOALS & CONSTRAINTS
+--------------------------------
+- Web-only primary (no native apps). Mobile-first responsive PWA experience for Tourist Dashboard.
+- Local-network-only deployment: server + DB + optional Ganache run on the local network/VM. App access restricted to network.
+- Combination/hybrid: Browser Geolocation API tracking + optional IoT (ESP32 + RFID) check-ins.
+- Admin verifies Aadhaar in person using camera-capture UI; no external OCR required.
+- All critical records (tourist id, itinerary, incidents) are recorded into a tamper-evident ledger (local Ganache or Merkle log).
+- Simple auth: Email + password for tourists, RBAC for Admin & Police. No social login.
+- Localization: start with English (en.json) and Hindi (hi.json) for Tourist UI; easily add more languages by adding JSON to /locales.
+- Visual style: Notion-like (cards, whitespace), white background primary, black/dark-mode optional, lucide icons.
+- Must be demoable in hackathon: prepare sample data and a demo script.
+
+2) TECH STACK (recommended)
+---------------------------
+Frontend
+- Next.js (React) with TypeScript — mobile-first pages, PWA support (next-pwa), i18n integration. (You said no Vite; Next.js is chosen. If team wants non-React, similar structure works.)
+- Tailwind CSS for fast styling + custom Notion-like theme tokens.
+- lucide-react for icons.
+- Leaflet.js for maps (open-source, supports offline tiles). Optional Mapbox if licensed.
+- TensorFlow.js for local inference and anomaly scoring (optional).
+
+Backend / API
+- FastAPI (Python) with Uvicorn for async endpoints, OR Go (Gin) if team prefers Go. We recommend FastAPI because of Python's native ML interop.
+- PostgreSQL for relational data (local). Use TimescaleDB extension optionally for analytics/time-series if needed.
+- Redis (optional) for ephemeral caching / WebSocket pub-sub if scaling across nodes (not necessary for single local node).
+- Socket.IO (via node or python-socketio) or native WebSockets for real-time streaming. Use socket.io client on frontend for simplicity.
+
+Blockchain / Tamper Log
+- Ganache CLI (local Ethereum) to demo blockchain entries (tx hash saved). Or
+- Merkle Log: server-side SHA256 hashes of records signed with server private key and stored in blockchain_log table (simpler offline option).
+
+IoT
+- ESP32 (HTTP POST or MQTT) to server endpoint /api/iot/log; RC522 RFID reader for checkpoint check-ins; optional BLE-based beacons.
+
+Storage & Caching
+- PostgreSQL data; images stored on disk under /data/images (encrypted at rest) with paths in DB; optionally use MinIO (S3 compatible) locally for object storage.
+- Browser IndexedDB for offline location cache + queueing events.
+- Service Worker for PWA and caching static assets & tiles.
+
+Dev Tools
+- Docker Compose for local stack: postgres, ganache, fastapi, frontend container.
+- Makefile + scripts: start-db, start-ganache, start-api, start-frontend, seed-sample-data.
+
+3) PROJECT LAYOUT / FILE STRUCTURE (suggested)
+-----------------------------------------------
+/project-root
+├─ /frontend-next (Next.js + TypeScript)
+│   ├─ /pages
+│   │   ├─ /_app.tsx
+│   │   ├─ /index.tsx (landing)
+│   │   ├─ /register.tsx
+│   │   ├─ /login.tsx
+│   │   ├─ /tourist/dashboard.tsx
+│   │   ├─ /tourist/map.tsx
+│   │   ├─ /admin/dashboard.tsx
+│   │   ├─ /admin/pending-aadhaar.tsx
+│   │   └─ /police/dashboard.tsx
+│   ├─ /components (UI components: Card, Modal, Map, SOSButton)
+│   ├─ /hooks (useGeoLocation, useSocket, useI18n)
+│   ├─ /styles (tailwind config & theme tokens)
+│   └─ /locales
+│       ├─ en.json
+│       └─ hi.json
+├─ /backend (FastAPI)
+│   ├─ /app
+│   │   ├─ main.py (FastAPI app)
+│   │   ├─ /routes (auth.py, users.py, admin.py, iot.py, alerts.py)
+│   │   ├─ /models (sqlalchemy models)
+│   │   ├─ /services (blockchain_service.py, iot_service.py, ai_service.py)
+│   │   └─ /schemas (pydantic request/response)
+│   └─ Dockerfile
+├─ /infra (docker-compose.yml, scripts)
+├─ /data (sqlite/postgres data, images)
+└─ README.md
+
+4) LOCALIZATION STRATEGY (language choice on first run)
+--------------------------------------------------------
+- On first open of Tourist Dashboard (first time the tourist touches the device), show a modal: "Select Language" {Hindi, English}. Save selection in localStorage and in user profile after registration.
+- Locales folder structure: /frontend-next/locales/{en.json, hi.json}
+- Each JSON contains keys for Tourist Dashboard only (as requested). If admin/police languages added later, create admin_en.json etc.
+- Example JSON skeletons included in Appendix.
+
+5) SCREEN-BY-SCREEN — MOBILE-FIRST TOURIST DASHBOARD (bottom → top)
+-------------------------------------------------------------------
+Design notes:
+- Mobile-first layout based on your reference: bottom navigation bar with icons: Dashboard, Map, Itinerary, Alerts, Profile.
+- Big SOS button in the first fold (prominent & centered). Use confirm modal before sending unless "hold-to-send" behavior is enabled.
+- Theme: Notion-like cards, left/right padding, white background with subtle shadows. Dark-mode available via tailwind 'dark' class (black background). lucide icons everywhere.
+
+Screens (bottom to top order — how user reads/scrolls up):
+A) Bottom Nav (persistent)
+   - Icons (lucide): Home, Map, Calendar, Bell, User
+   - Labels hidden to save space; long-press shows tooltip.
+
+B) Footer Quick Bar (if requested)
+   - Small row: Location toggle (on/off), Share Location (family), Help
+
+C) Profile Summary (top card)
+   - Avatar (circular) | Tourist Name | Tourist ID (small) | Validity range (dates)
+   - Small QR icon button (opens QR modal containing QR code + blockchain address)
+   - Status pill: Aadhaar verification status (Pending / Verified)
+
+D) Itinerary Mini Timeline
+   - Collapsible card showing next stop, ETA, short route line
+   - Each item: Location name, date/time, status (planned/visited)
+   - Tap opens full itinerary page (calendar-style)
+
+E) Interactive Map Card (small)
+   - Mini-map shows current location + nearest geofences.
+   - Toggle buttons: Heatmap | Density | Road clarity
+   - Tap expands to full-screen map page
+
+F) Incident & Report row
+   - Two large buttons side-by-side: "Report Incident" (camera icon) | "Emergency Contacts"
+   - Report Incident opens modal: capture photo OR attach existing, enter short description, optional severity dropdown, automatic GPS attach
+   - On submit: creates incident in local DB, shows toast "Report submitted — police notified"
+
+G) Emergency SOS (central CTA)
+   - Large card with big red triangle icon and "EMERGENCY SOS" text
+   - Behavior: single tap opens confirmation (Hold to confirm to avoid accidental). When confirmed: capture latest location, battery & network status, post alert to /api/alerts type='sos'
+   - Also: if IoT band exists and is paired, triggers IoT SOS flow to notify local server with device details
+
+H) Safety Score Card
+   - Big numeric score (0-100) with small horizontal gauge (green → yellow → red)
+   - Tooltip explains factors contributing to score: geofence entry, deviation, inactivity, density
+   - Small 'tips' link for safety advice
+
+I) Notifications / Alerts feed
+   - Recent items: geofence entry, high density alert, admin broadcast, incident updates
+   - Each item tappable to show details on map
+
+J) Settings / Profile (bottom-most)
+   - Edit emergency contact, enable/disable location sharing, language, privacy consent, logout
+
+6) ADMIN DASHBOARD (DESKTOP-FIRST but mobile compatible)
+--------------------------------------------------------
+Admin dashboard is the main control center. Prioritize large-screen UX but make critical actions accessible via tablet/mobile.
+
+Landing (Overview) Screen
+- Top header: App Logo | Search (by name/email/tourist id) | Admin avatar with dropdown
+- Left navigation: Dashboard, Pending Aadhaar, Generate ID, Live Tracking, Geofences, Incidents, Alerts, Analytics, Settings
+- Main content (three-column layout):
+  - Left: Live Map (primary) — real-time dots for tourists, heatmap toggle, cluster toggle, geofence overlay, road clarity polylines
+  - Middle: Recent activity / alerts list (scrollable) — SOS entries first
+  - Right: Quick Actions & KPIs (Active tourists, avg safety score, active alerts, incidents today)
+- Footer: System status chips: Blockchain (Online/Offline), AI (Active/Idle), IoT Gateway (Connected/Disconnected)
+
+Pending Aadhaar Screen
+- Table of pending submissions with thumbnails (front & back)
+- Click item -> modal with full-screen image, tourist profile details, 'Approve', 'Request re-submit', 'Reject' with reason
+- Approve -> moves to 'Generate ID' wizard
+
+Generate Tourist ID Wizard
+- Step 1: Select tourist (from pending or search) — shows form pre-filled
+- Step 2: Duration & Visit details (valid_from, valid_to, expected itinerary)
+# truncated due to message length limits - full file saved to disk

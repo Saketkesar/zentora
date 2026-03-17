@@ -1,0 +1,13 @@
+# Serve the app securely at https://zentora.local
+# This uses Caddy's local HTTPS (self-signed cert trusted locally if you install the root CA)
+
+zentora.local {
+	encode gzip zstd
+	# Frontend on port 3000
+	reverse_proxy  frontend:3000
+}
+
+# Optional: route backend under subpath if you want direct access outside Next proxy
+# zentora.local/api/* {
+# 	reverse_proxy backend:8000
+# }

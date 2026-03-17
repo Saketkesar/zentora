@@ -1,0 +1,43 @@
+{
+  "landing.heroTitle": "Smart Tourist Safety Monitoring",
+  "landing.heroSubtitle": "Mobile-first PWA with admin and police dashboards. Local network only.",
+  "landing.register": "Register / Start Verification",
+  "landing.login": "Login",
+  "landing.adminLogin": "Admin Login",
+  "landing.policeLogin": "Police Login",
+  "landing.how1Title": "1. Register",
+  "landing.how1Body": "Create your account and fill basic details.",
+  "landing.how2Title": "2. Verify Aadhaar at counter",
+  "landing.how2Body": "Show your document in person for approval.",
+  "landing.how3Title": "3. Enable location",
+  "landing.how3Body": "Share your location for safety features.",
+  "landing.footerNote": "All data stays within local network.",
+
+  "login.title": "Login",
+  "login.submit": "Login",
+  "login.noAccount": "No account?",
+  "login.register": "Register",
+
+  "register.title": "Register / Start Verification",
+  "register.name": "Full name",
+  "register.email": "Email",
+  "register.password": "Password",
+  "register.dob": "Date of birth",
+  "register.profession": "Profession",
+  "register.phone": "Phone",
+  "register.submit": "Create account",
+
+  "tourist.title": "Tourist Dashboard",
+  "tourist.header": "Tourist",
+  "tourist.badge": "Tourist ID",
+  "tourist.notVerified": "Not verified yet",
+  "tourist.safetyScore": "Safety score",
+  "tourist.mapSnapshot": "Map snapshot",
+  "tourist.openMap": "Open map",
+  "tourist.itinerary": "Itinerary",
+  "tourist.itineraryEmpty": "No itinerary yet",
+
+  "common.home": "Home",
+  "common.email": "Email",
+  "common.password": "Password"
+}

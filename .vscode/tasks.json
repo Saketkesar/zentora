@@ -1,0 +1,28 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "docker compose up dev",
+			"type": "shell",
+			"command": "docker compose -f infra/docker-compose.yml up --build",
+			"isBackground": false,
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Typecheck frontend",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"cd /home/saket/Documents/port:88_zentora/frontend-next && if [ -f package.json ]; then npm run -s build --dry-run || true; else echo 'no-frontend'; fi"
+			],
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		}
+	]
+}

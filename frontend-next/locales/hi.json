@@ -1,0 +1,43 @@
+{
+  "landing.heroTitle": "स्मार्ट टूरिस्ट सेफ्टी मॉनिटरिंग",
+  "landing.heroSubtitle": "मोबाइल-फर्स्ट PWA, एडमिन और पुलिस डैशबोर्ड के साथ। सिर्फ लोकल नेटवर्क।",
+  "landing.register": "रजिस्टर / सत्यापन शुरू करें",
+  "landing.login": "लॉगिन",
+  "landing.adminLogin": "एडमिन लॉगिन",
+  "landing.policeLogin": "पुलिस लॉगिन",
+  "landing.how1Title": "1. रजिस्टर",
+  "landing.how1Body": "अपना खाता बनाएं और बुनियादी विवरण भरें।",
+  "landing.how2Title": "2. काउंटर पर आधार सत्यापन",
+  "landing.how2Body": "अपने दस्तावेज़ को व्यक्ति में दिखाएं।",
+  "landing.how3Title": "3. लोकेशन सक्षम करें",
+  "landing.how3Body": "सुरक्षा फीचर्स के लिए अपनी लोकेशन शेयर करें।",
+  "landing.footerNote": "सारा डेटा लोकल नेटवर्क में ही रहता है।",
+
+  "login.title": "लॉगिन",
+  "login.submit": "लॉगिन",
+  "login.noAccount": "खाता नहीं है?",
+  "login.register": "रजिस्टर",
+
+  "register.title": "रजिस्टर / सत्यापन शुरू करें",
+  "register.name": "पूरा नाम",
+  "register.email": "ईमेल",
+  "register.password": "पासवर्ड",
+  "register.dob": "जन्म तिथि",
+  "register.profession": "पेशा",
+  "register.phone": "फोन",
+  "register.submit": "खाता बनाएं",
+
+  "tourist.title": "टूरिस्ट डैशबोर्ड",
+  "tourist.header": "टूरिस्ट",
+  "tourist.badge": "टूरिस्ट आईडी",
+  "tourist.notVerified": "अभी सत्यापित नहीं",
+  "tourist.safetyScore": "सेफ्टी स्कोर",
+  "tourist.mapSnapshot": "मैप स्नैपशॉट",
+  "tourist.openMap": "मैप खोलें",
+  "tourist.itinerary": "यात्रा कार्यक्रम",
+  "tourist.itineraryEmpty": "अभी कोई कार्यक्रम नहीं",
+
+  "common.home": "मुखपृष्ठ",
+  "common.email": "ईमेल",
+  "common.password": "पासवर्ड"
+}

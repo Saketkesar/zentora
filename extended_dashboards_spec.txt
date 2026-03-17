@@ -1,0 +1,398 @@
+
+Smart Tourist Safety Monitoring System
+EXTENDED DEVELOPER SPEC — Landing Page + Police Dashboard + Admin Dashboard + Tourist Dashboard (NO DUMMY DATA)
+========================================================================================
+This document expands the previous spec with full, production-like detail for the Landing Page, Police Dashboard, Admin Dashboard,
+and Tourist Dashboard. It provides exact field definitions, UI layout, component behaviors, API contracts, database queries,
+security handling, and real-data templates (placeholders/formats) — NOT dummy personal data; instead realistic schema instances
+and data-format examples you can use to seed real deployments.
+
+GUIDELINES ABOUT "NO DUMMY DATA"
+--------------------------------
+You said "not dummy fake data". For privacy and legality, I will NOT include any real personal data (names/IDs/phones). Instead,
+this document contains **realistic data schemas, field formats, and realistic example records with anonymized placeholder values**
+that are suitable for seeding or conversion into production test data (e.g., `TUR-2025-0001`, phone format `+91-9876543210`, Aadhaar hash placeholders).
+Use these templates to import legitimate production/test data from your organization's source systems under appropriate consent.
+
+CONTENTS
+--------
+A. Landing Page — UX & API
+B. Tourist Dashboard — full screen-by-screen UI and behaviors (mobile-first)
+C. Admin Dashboard — pages, flows, actions, role permissions
+D. Police Dashboard — screens, actions, E-FIR flow
+E. Data models & example records (sanitized templates)
+F. API endpoints specific to dashboards (detailed contract)
+G. Security & Privacy (strict handling for PII like Aadhaar)
+H. SQL queries & sample views for dashboards (no personal data)
+I. Acceptance tests & end-to-end flows for the dashboards
+J. Handoff checklist for developers
+
+A) LANDING PAGE — UX & API
+--------------------------
+Goal: First touchpoint for staff and tourists in the local network.
+Routes: GET / -> Landing page (public within LAN)
+Design: Clean Notion-like white background, black/dark mode option.
+Primary actions on landing page:
+ - For Tourists: "Register / Start Verification" button (opens registration modal)
+ - For Tourists: "Login" button (email + password)
+ - For Admins: "Admin Login" (separate route /admin/login)
+ - For Police: "Police Login" (separate route /police/login)
+ - Quick Links: "How it works", "Privacy", "Contact support", "Demo mode"
+ - Language selector prominently for Tourist first-time (EN/HI) — persists to localStorage (This should be first okk )
+
+Landing Page UI Components and Layout:
+ - Top-bar: Logo (SafeTravel), Language selector, Help icon (opens FAQ modal)
+ - Hero card: Short mission statement + CTA buttons (Register / Login)
+ - How it works: 3-step cards (1.Register -> 2.Verify Aadhaar at counter -> 3.Enable location)
+ - Security note card: "All data stored locally and encrypted; Aadhaar images retained only for verification; blockchain ensures tamper-proof IDs."
+ - Footer: Local network info (server IP), version number, contact phone/email for admin
+
+Landing Page API interactions:
+ - GET /api/status -> returns system status (blockchain, db, ai)
+ - POST /api/auth/request-demo -> requests demo credentials for judges
+ - POST /api/consent/marketing -> (optional) store consent for notifications
+
+Analytics on landing page (admin-only visibility)
+ - Count of pending registrations, active users now, last 24h SOS count
+ - These numbers retrieved via GET /api/public/landing-stats (admin token required)
+
+B) TOURIST DASHBOARD — MOBILE-FIRST, BOTTOM-TO-TOP
+--------------------------------------------------
+Screen flow summary: /tourist/dashboard (PWA, mobile-first)
+
+Top (header area, accessible via swipe-down):
+ - Compact header: left = back/home, center = logo & "SafeTravel", right = profile avatar (tap opens profile modal)
+ - Tourist badge: TOURIST ID (TUR-YYYY-NNNN), validity (from -> to), small QR icon (opens QR modal)
+ - Aadhaar status pill: (Pending / Verified / Rejected) with color coding (gray/yellow/green/red)
+
+Main fold (first screen visible without scroll):
+ 1) SAFETY STATUS CARD
+    - Large numeric safety score (0 - 100) bold, color-coded gauge
+    - Small legend: Low risk (green) → High risk (red)
+    - Offline indicator if location not currently permitted
+
+ 2) EMERGENCY SOS (Prominent CTA)
+    - Large rounded button (full-width), color red with triangle icon
+    - Behavior:
+       - Single tap opens confirm modal "Hold to send SOS" OR Hold-to-send UI: requires 3-second hold
+       - On confirm: capture latest GPS coords, battery %, network type, and push to POST /api/alerts
+       - Emits websocket event tourist:{id}:alert and admin:alert:new, police:alert:new
+       - Show "SOS sent" screen with ETA to nearest police (if geocoded to admin data)
+
+ 3) INCIDENT REPORT & EMERGENCY CONTACTS (two buttons)
+    - Report Incident: opens camera modal with capture area (same green rectangle overlay for documents) but flexible for general photos
+       - Fields: photo (required), description (required, 1..500 chars), category select (medical/assault/property/road-issue/other), auto-attach current location (toggle), contact preference
+       - POST /api/incidents -> returns incident id and status
+    - Emergency Contacts: shows prefilled list; add/edit contact modal (requires phone validation)
+
+ 4) MAP SNAPSHOT CARD (interactive)
+    - Mini leafet map (50% height of fold) with: current location pin, itinerary polylines as dashed line, geofences shaded, density heat overlay toggle
+    - Tap to open /tourist/map full-screen view
+    - Map uses tile layer from local OSM or cached MBTiles
+
+ 5) ITINERARY TIMELINE (collapsible)
+    - List of itinerary milestones, each with location, date/time, ETA, check-in status
+    - Buttons: "Check-in" (manual) if at site; checkpoint auto-check-in if RFID/IoT matched
+    - Declares deviations in red: if expected vs actual > threshold
+
+ 6) ALERTS FEED (compact)
+    - Last 7 alerts involving the tourist (geofence, admin messages, incident updates)
+    - Tap expands to alert detail modal with resolve action if needed
+
+Profile & Settings (bottom nav "Profile"):
+ - Edit Profile form fields (exactly):
+   - Full name: string (required) [max 100 chars]
+   - Email: string (required, unique) [format: user@example.com]
+   - Password: string (min 8 chars)
+   - DOB: date (ISO 8601), compute Age automatically
+   - Profession: string (optional)
+   - Phone: string (E.164 format recommended, e.g., +919876543210)
+   - Emergency contact: object { name, phone, relation }
+   - Aadhaar front_img_path/back_img_path (read-only after submit)
+   - Geolocation consent: boolean + consent_timestamp
+   - Language preference: 'en'|'hi'
+
+User flows & actions:
+ - Enable location: when toggled, call navigator.geolocation.watchPosition; POST each update to /api/locations (batched or via websocket)
+ - Checkpoints (manual): POST /api/checkins { user_id, lat, lng, note } for manual checkin
+ - QR scan: allow admin scanning tourist QR for offline verification at checkpoints
+ - Logout: clear JWT, redirect to landing page
+
+Tourist UI micro-interactions & UX rules:
+ - SOS confirm requires hold; accidental touch prevented by modal
+ - Camera capture for incidents uses auto-focus and compresses images to <= 300KB if possible
+ - Map interactions disabled in offline mode; show cached tiles and last-known location
+
+C) ADMIN DASHBOARD — DETAILED PAGES, ACTIONS, PERMISSIONS
+---------------------------------------------------------
+Admin role: full access to manage tourist lifecycle, geofence, incidents, analytics, and IoT devices. Admin dashboard assumes desktop-first layout.
+
+Admin Landing / Overview (/admin/dashboard)
+ - Left side: navigation menu (Dashboard, Pending Aadhaar, Generate ID, Live Tracking, Geofences, Devices, Incidents, Alerts, Analytics, Settings)
+ - Main column: Live Map (full width), with top filter bar: Search (name/email/tourist id), Filter by score, Filter by pending verifications
+ - Right column: KPIs (Active tourists, Avg safety score, Active SOS, Incidents Today), Quick Actions (Register Tourist, Issue QR/ticket, Send Broadcast)
+ - Recent Activity list with actionable buttons (View, Track, Resolve)
+ - System Logs: blockchain node status, AI module health, IoT gateway connectivity
+
+Pending Aadhaar (/admin/pending-aadhaar)
+ - Table columns: Submitted at, Email, Name, Thumbnail front, Thumbnail back, Action buttons (View, Approve, Reject)
+ - Approve flow: opens modal with side-by-side preview (front/back) and a checklist:
+    - Photo matches tourist? [checkbox]
+    - Document authenticity (observed physically) [checkbox]
+    - Comments (text)
+    - Buttons: Approve (proceed to generate ID), Reject (requires reason)
+ - When Approve clicked -> navigate to Generate Tourist ID wizard
+
+Generate Tourist ID wizard (/admin/generate-id)
+ - Step 1: confirm personal details (editable)
+ - Step 2: set validity: valid_from (date/time), valid_to (date/time)
+ - Step 3: optional: bind RFID tag (tag_id) or issue QR printed pass
+ - Step 4: capture profile photo and signature (optional)
+ - Step 5: create tourist id -> server computes tourist_id pattern: TUR-YYYY-#### and records:
+    - Write to DB, compute SHA256 hash of record payload, and either store in Ganache contract or in blockchain_log table (merkle approach)
+    - Return tx_hash or merkle_hash in response
+ - Confirmation screen with QR code, download PDF pass, and 'Print' button
+
+Live Tracking (/admin/live-tracking)
+ - Full-screen map with live dots; click dot -> mini profile card (name, tourist id, last seen, safety score)
+ - Filtering & playback controls (time slider) to replay tracks
+ - Right-click context menu on map to create Geofence polygon or checkpoint
+
+Geofence Management (/admin/geofences)
+ - Create / Edit geofence modal:
+    - Name, risk_level (1..5), polygon drawing tool, description, active_hours, notification_policy (notify admin/police/tourist)
+    - Save -> emits geofence published event; older geofences versioned (audit trail)
+
+Incident Management (/admin/incidents)
+ - Table: ID, user, category, severity, submitted_at, location (link), status (open/in_progress/closed), assigned_police (nullable)
+ - Click to view details: photo preview, description, timeline of actions (admin comments, police notes)
+ - Actions: Assign to police, Mark as investigated, escalate (email/SMS) or close
+
+IoT Device Management (/admin/devices)
+ - Register new device: device_id, type (rfid_reader/wearable), location (lat/lng), pairing token
+ - Device status: last_seen, battery, signal strength
+ - Actions: Disable device, Re-provision, View logs
+
+Broadcasts & Notifications (/admin/broadcast)
+ - Compose message: title, message, target area (geofence or radius), severity, delivery channels (push/email/sms)
+ - Preview: shows estimated reach (count of tourists within area)
+ - Send -> records broadcast event and sends via /api/notifications
+
+Audit & Logs (/admin/audit)
+ - View blockchain_log entries and admin activities with timestamps and operator IDs
+ - Exportable CSV for legal purposes
+
+Admin Permissions & RBAC Details
+ - Admin can: Approve Aadhaar, Generate ID, Create Geofences, Send Broadcasts, View All Data, Assign Incidents
+ - Super-Admin: can create other admins, set system configuration
+ - Actions should be logged with admin_id and timestamp for audit trail
+
+D) POLICE DASHBOARD — TASK-ORIENTED & COMPLIANT
+-----------------------------------------------
+Police role: Focused on responding to high-priority events (SOS, serious incidents) and E-FIR generation.
+Login route: /police/login (two-factor optional via admin toggle)
+
+Police Landing (/police/dashboard)
+ - Top of screen: Active SOS count, Incidents assigned, Response times avg
+ - SOS Panel (left): ordered by severity & recency; each entry includes tourist_id, coords, timestamp, safety_score, quick actions (Navigate, Acknowledge, Mark dispatched)
+ - Map (center): shows active SOS and assigned incidents; color-coded by priority
+ - Incident Queue (right): assigned to unit vs unassigned; filter by severity
+
+Police Actions & Workflows
+ - Acknowledge SOS: marks as "Acknowledged" and logs officer id & ETA
+ - Dispatch: assign officer id and estimated time, send push to admin & update incident status
+ - E-FIR creation: pre-filled form from user record, itinerary, blockchain proof (hash/tx), last known location and timestamps; requires officer signature (stored as image or typed name + badge number)
+ - Evidence packet: compile incident images + location trail + blockchain entries -> download as ZIP for legal handover
+
+Interoperability with Admin
+ - Admin and Police share incident status but police have a separate permission set; only police can generate E-FIR and change legal status to 'Under Investigation' or 'Closed' for police-assigned incidents.
+
+E) DATA MODELS & EXAMPLE RECORDS (SANITIZED TEMPLATES)
+-------------------------------------------------------
+Note: These are *templates* and realistic placeholders. Replace with real data only under proper consent and security.
+
+1) users (tourists) - example record layout (no real PII)
+{
+  "id": 101,
+  "email": "tourist101@example.local",
+  "password_hash": "$2b$12$...",
+  "name": "Tourist 101",
+  "dob": "1988-06-15",
+  "age": 37,
+  "profession": "Engineer",
+  "phone": "+91-9876543210",
+  "avatar_path": "/data/images/users/101-avatar.jpg",
+  "aadhaar_front_path": "/data/images/users/101-aadhaar-front.jpg",
+  "aadhaar_back_path": "/data/images/users/101-aadhaar-back.jpg",
+  "aadhaar_hash": "sha256:abcdef...",
+  "aadhaar_verified": false,
+  "verification_status": "pending",
+  "tourist_id": null,
+  "ticket_valid_from": null,
+  "ticket_valid_to": null,
+  "emergency_contact": {"name":"Family Member","phone":"+91-9123456780","relation":"Brother"},
+  "blockchain_tx": null,
+  "last_seen": null,
+  "created_at": "2025-09-16T09:45:00Z"
+}
+
+2) itineraries
+{
+  "id": 301,
+  "user_id": 101,
+  "location_name": "Hilltop Viewpoint",
+  "lat": 33.7489,
+  "lng": 76.6781,
+  "start_at": "2025-09-17T08:00:00Z",
+  "end_at": "2025-09-17T12:00:00Z",
+  "status": "planned"
+}
+
+3) alerts
+{
+  "id": 501,
+  "user_id": 101,
+  "type": "geofence_entry",
+  "severity": 3,
+  "description": "Entered restricted ridge area",
+  "lat": 33.7450,
+  "lng": 76.6799,
+  "status": "open",
+  "created_at": "2025-09-17T10:12:34Z"
+}
+
+4) incidents (example)
+{
+  "id": 701,
+  "user_id": 101,
+  "photo_path": "/data/incidents/701-1.jpg",
+  "description": "Minor injury after fall on trail near checkpoint 4.",
+  "lat": 33.7461,
+  "lng": 76.6802,
+  "status": "open",
+  "created_at": "2025-09-17T10:30:02Z",
+  "assigned_police": 5
+}
+
+F) API ENDPOINTS (DASHBOARD-SPECIFIC CONTRACTS)
+-----------------------------------------------
+Auth & Session
+- POST /api/auth/register
+  - body: { email, password, name, dob, profession, phone, emergency_contact }
+  - returns: { user_id, status: "pending" }
+- POST /api/auth/login
+  - body: { email, password }
+  - returns: { access_token, refresh_token, role }
+
+Tourist dashboard endpoints
+- GET /api/tourist/me
+  - returns profile + tourist_id + valid_from/valid_to + current safety score
+- POST /api/locations
+  - body: { user_id, lat, lng, accuracy, speed, timestamp, source }
+  - returns: { status: "ok" }
+- POST /api/alerts (used for SOS)
+  - body: { user_id, type: "sos"|"manual", lat, lng, description, battery, network }
+  - returns: { alert_id, notify: true }
+- POST /api/incidents
+  - multipart: images[], description, lat, lng, category, severity
+  - returns: { incident_id, status }
+
+Admin endpoints
+- GET /api/admin/pending-aadhaar
+- POST /api/admin/verify-aadhaar { user_id, action, comment }
+- POST /api/admin/generate-tourist-id { user_id, valid_from, valid_to, bind_rfid_id? }
+- GET /api/admin/active-tourists?region=&min_score=&max_score=
+- GET /api/admin/alerts?status=&severity=
+- POST /api/admin/geofences { name, polygon_geojson, risk_level, notification_policy }
+
+Police endpoints
+- GET /api/police/sos?status=open
+- POST /api/police/acknowledge { alert_id, police_id, eta_minutes }
+- POST /api/police/generate-efir { alert_id, notes, officer_id, signature_image }
+
+IoT endpoints
+- POST /api/iot/log -> body: { device_id, tag_id, lat, lng, type, payload, timestamp } (HMAC auth header)
+- POST /api/iot/pair -> admin binds device to location & issues token
+
+G) SECURITY & PRIVACY (strong, per PII like Aadhaar)
+----------------------------------------------------
+- Aadhaar handling rules (for demo & production):
+  - Only capture images on consent and provide clear instructions on retention and deletion.
+  - Store Aadhaar images encrypted with AES-256; store hash in DB for verification & blockchain entry.
+  - After admin verification, optionally delete Aadhaar images after configurable retention interval (e.g., 30 days) or move to sealed archive with restricted access.
+  - Log every access to Aadhaar images in audit table: { admin_id, user_id, timestamp, action }
+- Encryption:
+  - HTTPS (TLS) enforced across LAN (self-signed cert permitted for local)
+  - DB encryption at rest (Postgres encryption tools or disk-level LUKS)
+- Authentication & sessions:
+  - JWT short-lived tokens, refresh tokens stored in secure HttpOnly cookies; endpoints validate role-based access
+  - Password policy: min length 8+, complexity recommended; hash with bcrypt/scrypt
+- Admin & Police MFA (optional): enable TOTP for admin accounts
+- Logging & Audit:
+  - All admin actions stored in admin_audit table with JSON payloads and signatures
+  - Blockchain entries used as tamper-evidence; also store server-signed merkle hashes in DB for cross-validation
+- Access controls:
+  - Role enforcement in backend via dependency injection (FastAPI) or middleware (Go)
+  - Principle of least privilege for admin accounts; create separate scopes for super-admins
+
+H) SQL QUERIES & VIEWS (for dashboards, no PII in queries)
+-----------------------------------------------------------
+-- Active tourists view (for admin)
+CREATE VIEW admin_active_tourists AS
+SELECT u.tourist_id, u.name, u.last_seen, l.lat, l.lng, s.current_score
+FROM users u
+LEFT JOIN LATERAL (
+  SELECT lat, lng FROM locations_history lh WHERE lh.user_id = u.id ORDER BY timestamp DESC LIMIT 1
+) l ON true
+LEFT JOIN LATERAL (
+  SELECT score as current_score FROM safety_scores ss WHERE ss.user_id = u.id ORDER BY created_at DESC LIMIT 1
+) s ON true
+WHERE u.verification_status = 'verified';
+
+-- Alerts summary for admin dashboard (counts by severity)
+CREATE VIEW admin_alert_summary AS
+SELECT severity, COUNT(*) as cnt FROM alerts WHERE status = 'open' GROUP BY severity;
+
+-- SOS feed for police (only open SOS)
+CREATE VIEW police_sos_feed AS
+SELECT id as alert_id, user_id, lat, lng, created_at, severity FROM alerts WHERE type='sos' AND status='open' ORDER BY created_at DESC;
+
+I) ACCEPTANCE TESTS & E2E FLOWS (for dashboards)
+-------------------------------------------------
+Test 1: Tourist registration to verified ID
+ - Steps:
+   1. POST /api/auth/register with valid payload
+   2. Upload Aadhaar images via POST /api/users/:id/aadhaar
+   3. Admin views pending list GET /api/admin/pending-aadhaar
+   4. Admin approves via POST /api/admin/verify-aadhaar
+   5. Admin generates Tourist ID -> check users.tourist_id populated and blockchain_tx saved
+ - Acceptance: tourist can login and see tourist_id, validity, and QR code
+
+Test 2: SOS flow to police
+ - Steps:
+   1. Tourist logged in -> POST /api/alerts {type:'sos'}
+   2. Server creates alert and emits websocket to admin & police
+   3. Police GET /api/police/sos sees new entry; officer acknowledges via POST /api/police/acknowledge
+ - Acceptance: alert status moves to 'acknowledged' and logged with officer_id
+
+Test 3: Geofence detection
+ - Steps:
+   1. Create geofence polygon via POST /api/admin/geofences
+   2. Simulate user location via POST /api/locations within polygon
+   3. Server creates geofence_entry alert and admin receives websocket
+ - Acceptance: alert entry created with correct severity and polygon id in metadata
+
+J) DEVELOPER HANDOFF CHECKLIST (final)
+--------------------------------------
+- Repo with two folders (frontend, backend) and README with environment variables
+- Docker compose file and scripts to start local services (postgres, ganache, api, frontend)
+- Seed script to populate: geofences, one admin, one police account, sample pending aadhaar entry
+- Postman collection for all endpoints
+- en.json & hi.json translation files in /frontend/locales
+- Sample .env.example with placeholders for keys, DB connection, ganache mnemonic
+- Acceptance tests as scripts (pytest for backend, playwright for frontend)
+- Security checklist document: instructions for encrypting images, storing keys, and rotating secrets
+
+=====================================================================================
+END OF EXTENDED SPEC
+=====================================================================================

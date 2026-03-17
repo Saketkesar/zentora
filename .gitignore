@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.out/
+.DS_Store
+.env
+venv/
+.venv/
+__pycache__/
+*.pyc
+/data/**
+!.gitkeep

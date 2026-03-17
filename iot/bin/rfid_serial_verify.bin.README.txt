@@ -1,0 +1,30 @@
+This folder is intended to store prebuilt firmware binaries (.bin) for the NodeMCU (ESP8266) RFID serial verifier.
+
+How to produce the .bin file locally:
+
+Option A: Arduino IDE + ESP8266FS (export binary)
+1) Open Arduino IDE, File -> Preferences -> enable verbose for compilation.
+2) Open iot/rfid_serial_verify.ino.
+3) Board: NodeMCU 1.0 (ESP-12E), CPU 80MHz, Flash 4M (1M SPIFFS), Upload Speed 115200.
+4) Sketch -> Export compiled Binary. IDE will place a .bin next to the .ino.
+5) Copy the generated .bin here as rfid_serial_verify.bin
+
+Option B: CLI with arduino-cli
+1) Install: https://arduino.github.io/arduino-cli/latest/installation/
+2) Install esp8266 core:
+   arduino-cli core update-index
+   arduino-cli core install esp8266:esp8266
+3) Compile:
+   arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 iot/rfid_serial_verify.ino --output-dir iot/bin
+   This will generate iot/bin/rfid_serial_verify.ino.bin
+
+Flashing the .bin via esptool.py (example):
+1) Install esptool: pip install esptool
+2) Put device in normal mode (default for NodeMCU). Identify port (Windows COM9, Linux /dev/ttyUSB0).
+3) Run:
+   esptool.py --chip esp8266 --port COM9 --baud 460800 write_flash -fm dio -fs detect 0x00000 rfid_serial_verify.ino.bin
+   (On Linux) replace COM9 with /dev/ttyUSB0
+
+Troubleshooting:
+- If you see sync issues, lower baud to 115200 in esptool or press/hold FLASH button then RST on some boards.
+- Ensure wiring is disconnected during flashing if necessary.
