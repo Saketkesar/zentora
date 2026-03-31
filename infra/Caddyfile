@@ -1,13 +1,21 @@
-# Serve the app securely at https://zentora.local
-# This uses Caddy's local HTTPS (self-signed cert trusted locally if you install the root CA)
-
-zentora.local {
+# LAN gateway for any host/IP mapping that points to this machine.
+# Example share URL: http://zentora.192-168-1-10.nip.io
+:80 {
 	encode gzip zstd
-	# Frontend on port 3000
-	reverse_proxy  frontend:3000
-}
 
-# Optional: route backend under subpath if you want direct access outside Next proxy
-# zentora.local/api/* {
-# 	reverse_proxy backend:8000
-# }
+	# Keep Next.js API proxy routes on the frontend app.
+	# Without this, /api/proxy/* is sent to backend and returns 404.
+	handle /api/proxy/* {
+		reverse_proxy frontend:3000
+	}
+
+	# API routes go directly to backend.
+	handle_path /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# Everything else goes to Next frontend.
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

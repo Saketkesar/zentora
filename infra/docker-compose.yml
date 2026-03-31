@@ -7,8 +7,23 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_BASE=http://backend:8000
-      - NEXT_PUBLIC_SITE_ORIGIN=https://zentora.local
+      - NEXT_PUBLIC_SITE_ORIGIN=http://localhost
     depends_on:
+      - backend
+    networks:
+      - zentora_net
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - type: bind
+        source: ./Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+    depends_on:
+      - frontend
       - backend
     networks:
       - zentora_net

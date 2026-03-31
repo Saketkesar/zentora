@@ -215,7 +215,7 @@ function RoutePreview({ me, target }: { me: {lat:number,lng:number} | null, targ
   useEffect(() => {
     if (!target || !me) return
     let cancelled = false
-    let localMap: any = null
+    let localMap: any = null;
     (async () => {
       const L: any = await import('leaflet')
       if (cancelled) return

@@ -1,63 +1,161 @@
 # Zentora
 
-Zentora is a Smart Tourist Safety Monitoring System (mobile-first PWA + admin + police dashboards) built per the provided specs. This repo includes a Next.js frontend and a FastAPI backend. No dummy/seed data is included.
+Zentora is a smart tourist safety monitoring platform with role-based dashboards (Admin, Police, Tourist), geofencing, KYC flows, ID management, and map-oriented monitoring.
 
-## Structure
+This repository is now Docker-first and supports the same setup/start/stop workflow on Windows, macOS, and Linux.
 
-- `frontend-next` – Next.js (TypeScript), Tailwind CSS, lucide icons, simple i18n (EN/HI)
-- `backend` – FastAPI app with initial route skeletons
-- `infra` – Docker Compose for local services
-- `data` – Storage mount points (images, db volumes)
+## Tech Stack
 
-Logo: uses external URL `https://port88drops.netlify.app/PORT_88.svg` in the UI.
+- Frontend: Next.js (TypeScript), Tailwind CSS, React, i18n (EN/HI)
+- Backend: FastAPI, SQLAlchemy, Pydantic, Uvicorn
+- Database: PostgreSQL 16
+- Blockchain local node: Ganache
+- Reverse proxy/LAN gateway: Caddy
+- Orchestration: Docker Compose
+
+## Repository Structure
+
+- `frontend-next` - Next.js application and dashboards
+- `backend` - FastAPI application
+- `infra` - Docker Compose, Caddy, Nginx configs
+- `data` - Uploaded assets and generated data mounts
+- `iot` - RFID/IoT firmware sketches
 
 ## Prerequisites
 
-- Node.js 18+
-- Python 3.11+
-- Docker (optional, for compose)
+- Git
+- Docker Desktop (Windows/macOS) or Docker Engine + Compose Plugin (Linux)
 
-## Run locally (frontend)
+Verify:
 
-```zsh
-cd frontend-next
-npm install
-npm run dev
+```bash
+docker --version
+docker compose version
 ```
 
-Open `http://localhost:3000`.
+## Quick Start (All Platforms)
 
-## Run locally (backend)
+1. Clone repository
 
-```zsh
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```bash
+git clone https://github.com/Saketkesar/zentora.git
+cd zentora/infra
 ```
 
-Open `http://localhost:8000/docs`.
+2. Start all core services
 
-## Run via Docker Compose
-
-```zsh
-cd infra
-cp .env.example .env
-docker compose up --build
+```bash
+docker compose up -d --build postgres ganache backend frontend caddy
 ```
 
-Services:
+3. Open app
+
 - Frontend: `http://localhost:3000`
-- Backend: `http://localhost:8000`
-- Postgres: `localhost:5432` (no seed, empty)
+- Backend API: `http://localhost:8001`
+- Swagger Docs: `http://localhost:8001/docs`
+
+## Platform Commands
+
+### Windows (PowerShell)
+
+```powershell
+cd C:\path\to\zentora\infra
+docker compose up -d --build postgres ganache backend frontend caddy
+docker compose ps
+docker compose logs -f backend frontend
+docker compose down --remove-orphans
+```
+
+### macOS (zsh)
+
+```bash
+cd /path/to/zentora/infra
+docker compose up -d --build postgres ganache backend frontend caddy
+docker compose ps
+docker compose logs -f backend frontend
+docker compose down --remove-orphans
+```
+
+### Linux (bash)
+
+```bash
+cd /path/to/zentora/infra
+docker compose up -d --build postgres ganache backend frontend caddy
+docker compose ps
+docker compose logs -f backend frontend
+docker compose down --remove-orphans
+```
+
+## Service Control
+
+Start:
+
+```bash
+docker compose up -d --build postgres ganache backend frontend caddy
+```
+
+Stop:
+
+```bash
+docker compose down --remove-orphans
+```
+
+Restart:
+
+```bash
+docker compose down --remove-orphans
+docker compose up -d --build postgres ganache backend frontend caddy
+```
+
+Status:
+
+```bash
+docker compose ps
+```
+
+Logs:
+
+```bash
+docker compose logs -f backend frontend postgres ganache caddy
+```
+
+## Default Credentials
+
+- Admin: `admin@zentora.local` / `Admin@12345`
+- Police: `police@zentora.local` / `Police@12345`
+
+## LAN and Mobile Access
+
+- LAN gateway is served by Caddy on port `80`.
+- For mobile camera/location permissions, prefer HTTPS tunnel sharing (for example cloudflared) instead of plain HTTP hostnames.
+- `nip.io` over HTTP may load pages but can block camera/geolocation permissions on many mobile browsers.
+
+## Troubleshooting
+
+If login returns `Not Found` on hostname routes:
+
+```bash
+cd infra
+docker compose restart caddy
+```
+
+If login returns `invalid credentials` after rebuilds:
+
+```bash
+cd infra
+docker compose build --no-cache backend
+docker compose up -d backend
+```
+
+If ports are already in use:
+
+- Stop old containers and retry:
+
+```bash
+docker compose down --remove-orphans
+```
 
 ## Notes
-- No seeded data included, no PII. Endpoints exist but return structural responses.
-- Localization files: `frontend-next/locales/en.json`, `frontend-next/locales/hi.json`.
-- Add SSL/TLS and DB encryption for LAN deployment as per spec.
 
-## Next steps
-- Implement full API spec and DB models.
-- Add PWA service worker and offline tiles.
-- Wire WebSocket events and map features.
+- Current repo is optimized for Docker deployment across OSes.
+- Legacy local venv/npm-only setup is not required for normal usage.
