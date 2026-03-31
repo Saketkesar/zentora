@@ -20,6 +20,8 @@ This repository is now Docker-first and supports the same setup/start/stop workf
 - `infra` - Docker Compose, Caddy, Nginx configs
 - `data` - Uploaded assets and generated data mounts
 - `iot` - RFID/IoT firmware sketches
+- `setup.sh` - Cross-platform script for macOS/Linux
+- `setup.bat` - Cross-platform script for Windows
 
 ## Prerequisites
 
@@ -33,19 +35,30 @@ docker --version
 docker compose version
 ```
 
-## Quick Start (All Platforms)
+## Quick Start (Script-Based)
 
 1. Clone repository
 
 ```bash
 git clone https://github.com/Saketkesar/zentora.git
-cd zentora/infra
+cd zentora
 ```
 
-2. Start all core services
+2. Use the platform script
+
+macOS/Linux:
 
 ```bash
-docker compose up -d --build postgres ganache backend frontend caddy
+chmod +x setup.sh
+./setup.sh setup
+./setup.sh start
+```
+
+Windows (Command Prompt or PowerShell):
+
+```bat
+setup.bat setup
+setup.bat start
 ```
 
 3. Open app
@@ -54,32 +67,42 @@ docker compose up -d --build postgres ganache backend frontend caddy
 - Backend API: `http://localhost:8001`
 - Swagger Docs: `http://localhost:8001/docs`
 
-## Platform Commands
+## Script Commands
 
-### Windows (PowerShell)
-
-```powershell
-cd C:\path\to\zentora\infra
-docker compose up -d --build postgres ganache backend frontend caddy
-docker compose ps
-docker compose logs -f backend frontend
-docker compose down --remove-orphans
-```
-
-### macOS (zsh)
+### setup.sh (macOS/Linux)
 
 ```bash
-cd /path/to/zentora/infra
-docker compose up -d --build postgres ganache backend frontend caddy
-docker compose ps
-docker compose logs -f backend frontend
-docker compose down --remove-orphans
+./setup.sh setup
+./setup.sh start
+./setup.sh stop
+./setup.sh restart
+./setup.sh status
+./setup.sh logs
+./setup.sh lan-url
+./setup.sh share
+./setup.sh help
 ```
 
-### Linux (bash)
+### setup.bat (Windows)
+
+```bat
+setup.bat setup
+setup.bat start
+setup.bat stop
+setup.bat restart
+setup.bat status
+setup.bat logs
+setup.bat lan-url
+setup.bat share
+setup.bat help
+```
+
+## Direct Docker Commands (Alternative)
+
+Use this if you do not want scripts.
 
 ```bash
-cd /path/to/zentora/infra
+cd infra
 docker compose up -d --build postgres ganache backend frontend caddy
 docker compose ps
 docker compose logs -f backend frontend
