@@ -26,7 +26,7 @@ export default function Login() {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token'); localStorage.removeItem('refresh_token'); localStorage.removeItem('role')
       }
-      const res = await api('/api/auth/login', {
+      const res = await api('/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })

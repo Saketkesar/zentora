@@ -19,7 +19,7 @@ export default function VerifyPage() {
       if (by === 'tag') payload.tag_id = input.trim().toUpperCase()
       if (by === 'tourist') payload.tourist_uuid = input.trim()
       if (by === 'chain') payload.blockchain_id = input.trim()
-      const r = await api('/api/rfid/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const r = await api('/rfid/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       if (!r.ok) {
         const msg = await r.text()
         setError(msg || 'Verification failed')

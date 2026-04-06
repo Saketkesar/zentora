@@ -103,14 +103,14 @@ export default function AdminItineraryPlans() {
   const [loading, setLoading] = useState(true)
 
   const refresh = async () => {
-    const r = await api('/api/admin/itinerary-plans')
+    const r = await api('/admin/itinerary-plans')
     if (r.ok) setItems((await r.json()).items || [])
     setLoading(false)
   }
   useEffect(() => { refresh() }, [])
 
   const savePlan = async (title: string, data: any) => {
-    const r = await api('/api/admin/itinerary-plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, data }) })
+    const r = await api('/admin/itinerary-plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, data }) })
     if (r.ok) { await refresh(); alert('Plan saved') } else alert('Failed to save')
   }
 

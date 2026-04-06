@@ -55,7 +55,7 @@ export default function TouristItinerary() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const r = await api('/api/itinerary-plans')
+      const r = await api('/itinerary-plans')
       if (!r.ok) { setLoading(false); return }
       const data = await r.json()
       if (cancelled) return

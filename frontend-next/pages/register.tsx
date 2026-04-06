@@ -16,7 +16,7 @@ export default function Register() {
     e.preventDefault()
     setLoading(true)
     try {
-      const res = await api('/api/auth/register', {
+      const res = await api('/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -4,7 +4,7 @@ import { api, API_BASE } from '../../../src/lib/api'
 
 export default function PrintIdPage() {
   const [profile, setProfile] = useState<any>(null)
-  useEffect(() => { api('/api/tourist/me').then(async r => { if (r.ok) setProfile(await r.json()) }) }, [])
+  useEffect(() => { api('/tourist/me').then(async r => { if (r.ok) setProfile(await r.json()) }) }, [])
   return (
     <div>
       <Head>

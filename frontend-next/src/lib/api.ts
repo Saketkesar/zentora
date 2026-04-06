@@ -16,7 +16,7 @@ export async function api(path: string, init: RequestInit = {}) {
       const refresh_token = localStorage.getItem('refresh_token')
       if (refresh_token) {
         try {
-          const r = await fetch(`${base}/api/auth/refresh`, {
+          const r = await fetch(`${base}/auth/refresh`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refresh_token })

@@ -47,7 +47,7 @@ export function SOSButton({ variant = 'bar' }: { variant?: Variant }) {
     setSending(true)
     try {
       const meta = await getMeta()
-      await api('/api/alerts', {
+      await api('/alerts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'sos', ...meta })

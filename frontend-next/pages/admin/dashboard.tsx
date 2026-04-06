@@ -18,43 +18,43 @@ export default function AdminDashboard() {
     }
   }, [])
   return (
-  <div className="min-h-screen bg-[#f6f7f9] text-[#161418] px-4 py-4">
+  <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 text-black px-4 py-4">
       <Head><title>Admin Dashboard - Zentora</title></Head>
       <AppHeader title="Admin Dashboard" role="admin" />
       <StatsCards />
-      <div className="grid md:grid-cols-3 gap-4">
-  <div className="p-0 border rounded-xl border-neutral-200 overflow-hidden bg-white">
-          <div className="flex items-center justify-between p-4">
-            <div className="font-semibold flex items-center gap-2"><Map className="text-neutral-700" size={18} /> Live Map</div>
+      <div className="grid md:grid-cols-3 gap-4 mb-4">
+  <div className="p-0 rounded-xl bg-white border-2 border-neutral-200 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between p-4 border-b-2 border-neutral-200 bg-gradient-to-r from-slate-50 to-slate-100">
+            <div className="font-bold flex items-center gap-2 text-lg"><Map className="text-blue-600" size={20} /> Live Map</div>
               <div className="flex items-center gap-3">
-                <Link className="underline text-sm flex items-center gap-1" href="/admin/itineraries"><Calendar className="text-neutral-700" size={14} /> Itineraries</Link>
-                <Link className="underline text-sm flex items-center gap-1" href="/admin/kyc"><UserCheck className="text-neutral-700" size={14} /> KYC Review</Link>
+                <Link className="px-3 py-1 rounded-lg text-xs font-medium border border-neutral-300 hover:bg-neutral-50 transition-colors inline-flex items-center gap-1" href="/admin/itineraries"><Calendar size={14} /> Itineraries</Link>
+                <Link className="px-3 py-1 rounded-lg text-xs font-medium border border-neutral-300 hover:bg-neutral-50 transition-colors inline-flex items-center gap-1" href="/admin/kyc"><UserCheck size={14} /> KYC</Link>
               </div>
           </div>
           <div className="h-80">
             <MapView />
           </div>
         </div>
-  <div className="p-4 border rounded-xl border-neutral-200 bg-white">
-          <div className="font-semibold mb-2 flex items-center gap-2"><BellRing size={18} /> Recent Alerts</div>
+  <div className="p-5 rounded-xl bg-white border-2 border-neutral-200 shadow-sm">
+          <div className="font-bold mb-3 flex items-center gap-2 text-lg"><BellRing className="text-red-600" size={20} /> Recent Alerts</div>
           <AdminAlerts />
         </div>
-  <div className="p-4 border rounded-xl border-neutral-200 bg-white">
-          <div className="font-semibold flex items-center gap-2 mb-2"><Gauge size={18} /> Broadcast Notification</div>
+  <div className="p-5 rounded-xl bg-white border-2 border-neutral-200 shadow-sm">
+          <div className="font-bold flex items-center gap-2 mb-3 text-lg"><Gauge className="text-purple-600" size={20} /> Broadcast</div>
           <AdminNotify />
         </div>
       </div>
-      <div className="grid md:grid-cols-3 gap-4 mt-4">
-  <div className="p-4 border rounded-xl border-neutral-200 bg-white">
-          <div className="font-semibold mb-2 flex items-center gap-2"><Activity size={18} /> Active Users (last 5m)</div>
+      <div className="grid md:grid-cols-3 gap-4">
+  <div className="p-5 rounded-xl bg-white border-2 border-neutral-200 shadow-sm">
+          <div className="font-bold mb-3 flex items-center gap-2 text-lg"><Activity className="text-green-600" size={20} /> Active (5m)</div>
           <ActiveUsers />
         </div>
-  <div className="p-4 border rounded-xl border-neutral-200 md:col-span-2 bg-white">
-          <div className="font-semibold mb-2 flex items-center gap-2"><CreditCard size={18} /> Recent Tourist IDs</div>
+  <div className="p-5 rounded-xl bg-white border-2 border-neutral-200 shadow-sm md:col-span-2">
+          <div className="font-bold mb-3 flex items-center gap-2 text-lg"><CreditCard className="text-blue-600" size={20} /> Recent IDs</div>
           <RecentIds />
         </div>
-        <div className="p-4 border rounded-xl border-neutral-200 md:col-span-3 bg-white">
-          <div className="font-semibold mb-2 flex items-center gap-2"><AlertTriangle size={18} /> Incidents</div>
+        <div className="p-5 rounded-xl bg-white border-2 border-neutral-200 shadow-sm md:col-span-3">
+          <div className="font-bold mb-3 flex items-center gap-2 text-lg"><AlertTriangle className="text-amber-600" size={20} /> Incidents</div>
           <AdminIncidents />
         </div>
       </div>
@@ -65,25 +65,25 @@ export default function AdminDashboard() {
 function StatsCards() {
   const [stats, setStats] = useState<any | null>(null)
   useEffect(() => {
-    api('/api/admin/stats').then(async r => { if (r.ok) setStats(await r.json()) })
+    api('/admin/stats').then(async r => { if (r.ok) setStats(await r.json()) })
   }, [])
   const Card = ({ title, value, icon }: { title: string, value: any, icon: React.ReactNode }) => (
-    <div className="p-4 border rounded-xl border-neutral-200 bg-white flex items-center justify-between">
+    <div className="p-5 rounded-xl bg-white border-2 border-neutral-200 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between">
       <div>
-        <div className="text-sm text-neutral-500">{title}</div>
-        <div className="text-2xl font-semibold">{value ?? '—'}</div>
+        <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">{title}</div>
+        <div className="text-3xl font-bold text-black mt-2">{value ?? '—'}</div>
       </div>
-      <div className="text-neutral-600">{icon}</div>
+      <div className="text-blue-600 opacity-20">{icon}</div>
     </div>
   )
   return (
-    <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
-      <Card title="Users" value={stats?.total_users} icon={<Users size={20} />} />
-      <Card title="Tourists" value={stats?.total_tourists} icon={<Users size={20} />} />
-      <Card title="Verified" value={stats?.verified_tourists} icon={<Shield size={20} />} />
-  <Card title="Tourist IDs" value={stats?.total_ids} icon={<CreditCard size={20} />} />
-      <Card title={`Active (${stats?.active_window_minutes || 5}m)`} value={stats?.active_users_5m} icon={<Activity size={20} />} />
-      <Card title="Pending KYC" value={stats?.pending_kyc} icon={<BellRing size={20} />} />
+    <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+      <Card title="Users" value={stats?.total_users} icon={<Users size={32} />} />
+      <Card title="Tourists" value={stats?.total_tourists} icon={<Users size={32} />} />
+      <Card title="Verified" value={stats?.verified_tourists} icon={<Shield size={32} />} />
+  <Card title="IDs" value={stats?.total_ids} icon={<CreditCard size={32} />} />
+      <Card title={`Active (${stats?.active_window_minutes || 5}m)`} value={stats?.active_users_5m} icon={<Activity size={32} />} />
+      <Card title="Pending KYC" value={stats?.pending_kyc} icon={<BellRing size={32} />} />
     </div>
   )
 }
@@ -94,7 +94,7 @@ function AdminAlerts() {
   const [focused, setFocused] = useState<any | null>(null)
   const [me, setMe] = useState<{lat:number,lng:number}|null>(null)
   useEffect(() => {
-    api('/api/admin/alerts').then(async r => {
+    api('/admin/alerts').then(async r => {
       if (r.ok) setItems((await r.json()).items)
     }).finally(() => setLoading(false))
     // WebSocket for live alerts
@@ -163,7 +163,7 @@ function AdminIncidents() {
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   useEffect(() => {
-    api('/api/admin/incidents').then(async r => {
+    api('/admin/incidents').then(async r => {
       if (r.ok) setItems((await r.json()).items)
     }).finally(() => setLoading(false))
     const loc = typeof window !== 'undefined' ? window.location : null
@@ -266,7 +266,7 @@ function ActiveUsers() {
   const [items, setItems] = useState<any[]>([])
   useEffect(() => {
     const load = async () => {
-      const r = await api('/api/admin/users/locations')
+      const r = await api('/admin/users/locations')
       if (r.ok) {
         const data = await r.json()
         setItems(data.items || [])
@@ -299,7 +299,7 @@ function RecentIds() {
   const load = async () => {
     setLoading(true)
     try {
-      const r = await api('/api/admin/tourist-ids')
+      const r = await api('/admin/tourist-ids')
       if (r.ok) {
         const data = await r.json()
         setItems(data.items || [])
@@ -347,7 +347,7 @@ function AdminNotify() {
     if (!msg.trim()) return
     setSending(true)
     try {
-      const r = await api('/api/admin/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg }) })
+      const r = await api('/admin/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg }) })
       if (r.ok) { setMsg(''); alert('Sent') } else alert('Failed')
     } finally { setSending(false) }
   }

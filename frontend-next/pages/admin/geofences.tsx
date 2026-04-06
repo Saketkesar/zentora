@@ -139,14 +139,14 @@ export default function AdminGeofences() {
   }, [])
 
   const refresh = async () => {
-    const r = await api('/api/admin/geofences')
+    const r = await api('/admin/geofences')
     if (r.ok) setItems((await r.json()).items || [])
     setLoading(false)
   }
 
   const create = async (center: [number, number], radius: number, name: string, kind: 'safe'|'unsafe') => {
     const [lat, lng] = center
-    const r = await api('/api/admin/geofences', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, lat, lng, radius_m: radius, kind }) })
+    const r = await api('/admin/geofences', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, lat, lng, radius_m: radius, kind }) })
     if (r.ok) {
       await refresh()
       alert('Geofence created')
@@ -159,40 +159,43 @@ export default function AdminGeofences() {
   }
 
   return (
-    <div className="min-h-screen text-black px-4 py-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 text-black px-4 py-6">
       <Head><title>Admin Geofences - Zentora</title></Head>
-      <header className="flex flex-wrap items-center justify-between gap-3 mb-5">
+      <header className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2 font-display"><Shield size={20} /> Geofences</h1>
-          <p className="text-sm text-neutral-600">Drag the map to position a zone, then set radius and type.</p>
+          <h1 className="text-3xl font-bold flex items-center gap-3"><Map className="text-cyan-600" size={28} /> Geofences</h1>
+          <p className="text-sm text-neutral-600 mt-1">Drag the map to position a zone, then set radius and type.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link className="px-3 py-1.5 rounded-full border border-neutral-300 bg-white/80 flex items-center gap-1" href="/"><HomeIcon size={16} /> Home</Link>
-          <Link className="px-3 py-1.5 rounded-full border border-neutral-300 bg-white/80" href="/admin/dashboard">Back</Link>
+          <Link className="px-4 py-2 rounded-lg border-2 border-neutral-300 bg-white hover:bg-neutral-50 transition-colors text-sm font-medium inline-flex items-center gap-2" href="/admin/dashboard">← Back</Link>
         </div>
       </header>
 
-      <div className="grid lg:grid-cols-3 gap-4">
-        <section className="lg:col-span-2 p-4 border rounded-2xl border-neutral-200 bg-white/80 shadow-[0_10px_30px_-25px_rgba(15,23,42,0.35)] animate-slide-up">
-          <div className="font-semibold mb-2 flex items-center gap-2"><Map size={18} /> New Geofence</div>
+      <div className="grid lg:grid-cols-3 gap-6">
+        <section className="lg:col-span-2 p-6 rounded-2xl bg-white border-2 border-neutral-200 shadow-sm">
+          <div className="font-bold mb-4 flex items-center gap-2 text-lg"><Map className="text-cyan-600" size={20} /> New Geofence</div>
           <LeafletMap onCreate={create} existing={items} onMapReady={(map) => { mapRef.current = map }} />
         </section>
-        <section className="p-4 border rounded-2xl border-neutral-200 bg-white/80 shadow-[0_10px_30px_-25px_rgba(15,23,42,0.35)] animate-slide-up delay-100">
-          <div className="font-semibold mb-2">Existing</div>
-          {loading ? <div>Loading…</div> : (
+        <section className="p-6 rounded-2xl bg-white border-2 border-neutral-200 shadow-sm">
+          <div className="font-bold mb-4 text-lg">Existing Zones</div>
+          {loading ? (
+            <div className="text-center py-8 text-neutral-500">Loading…</div>
+          ) : (
             <ul className="text-sm space-y-2">
               {items.map(it => (
-                <li key={it.id} className={`p-3 rounded-xl border ${focusedId === it.id ? 'border-neutral-400 bg-neutral-50' : 'border-neutral-200 bg-white/80'}`}>
-                  <div className="flex items-start justify-between gap-2">
+                <li key={it.id} className={`p-4 rounded-lg border-2 transition-all ${focusedId === it.id ? 'border-cyan-400 bg-cyan-50' : 'border-neutral-200 bg-neutral-50 hover:border-neutral-300'}`}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
                     <div>
-                      <div className="font-medium">{it.name}</div>
-                      <div className="text-xs text-neutral-500">{Number(it.lat).toFixed(4)}, {Number(it.lng).toFixed(4)}</div>
-                      <div className="text-xs text-neutral-500">Radius {it.radius_m}m</div>
+                      <div className="font-semibold">{it.name}</div>
+                      <div className="text-xs text-neutral-600 mt-1">{Number(it.lat).toFixed(4)}, {Number(it.lng).toFixed(4)}</div>
+                      <div className="text-xs text-neutral-600">⭕ {it.radius_m}m radius</div>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full border ${it.kind === 'unsafe' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{it.kind}</span>
+                    <span className={`text-xs px-3 py-1 rounded-lg font-semibold ${it.kind === 'unsafe' ? 'border border-rose-300 bg-rose-50 text-rose-700' : 'border border-emerald-300 bg-emerald-50 text-emerald-700'}`}>
+                      {it.kind === 'unsafe' ? 'Unsafe' : 'Safe'}
+                    </span>
                   </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <button onClick={()=>focus(it)} className="px-3 py-1.5 rounded-full border border-neutral-300 text-xs bg-white/80">Focus on map</button>
+                  <div className="flex items-center gap-2 pt-2 border-t border-neutral-200">
+                    <button onClick={()=>focus(it)} className="flex-1 px-3 py-2 rounded-lg border-2 border-cyan-300 text-cyan-600 text-xs font-semibold hover:bg-cyan-50 transition-colors">Focus</button>
                   </div>
                 </li>
               ))}

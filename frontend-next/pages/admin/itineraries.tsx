@@ -30,7 +30,7 @@ export default function AdminItineraries() {
   const canSavePlan = planTitle.trim().length > 0 && pathPts.length >= 2
 
   const refresh = async () => {
-    const r = await api('/api/admin/itineraries')
+    const r = await api('/admin/itineraries')
     if (r.ok) setItems((await r.json()).items || [])
     setLoading(false)
   }
@@ -124,76 +124,76 @@ export default function AdminItineraries() {
     if (lat) body.lat = parseFloat(lat)
     if (lng) body.lng = parseFloat(lng)
     if (userId) body.user_id = parseInt(userId)
-    const r = await api('/api/admin/itineraries', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    const r = await api('/admin/itineraries', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     if (r.ok) { await refresh(); setTitle('City Tour'); setWhen(''); setLat(''); setLng(''); setUserId(''); alert('Itinerary added') } else alert('Failed')
   }
 
   return (
-    <div className="min-h-screen text-black px-4 py-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 text-black px-4 py-6">
       <Head><title>Admin Itineraries - Zentora</title></Head>
-      <header className="flex flex-wrap items-center justify-between gap-3 mb-5">
+      <header className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2 font-display"><Shield size={20} /> Itineraries</h1>
-          <p className="text-sm text-neutral-600">Create trips and route plans that show up in the tourist panel.</p>
+          <h1 className="text-3xl font-bold flex items-center gap-3"><CalendarPlus className="text-orange-600" size={28} /> Itineraries</h1>
+          <p className="text-sm text-neutral-600 mt-1">Create trips and route plans for tourists.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link className="px-3 py-1.5 rounded-full border border-neutral-300 bg-white/80 flex items-center gap-1" href="/"><HomeIcon size={16} /> Home</Link>
-          <Link className="px-3 py-1.5 rounded-full border border-neutral-300 bg-white/80" href="/admin/dashboard">Back</Link>
+          <Link className="px-4 py-2 rounded-lg border-2 border-neutral-300 bg-white hover:bg-neutral-50 transition-colors text-sm font-medium inline-flex items-center gap-2" href="/admin/dashboard">← Back</Link>
         </div>
       </header>
 
-      <div className="grid lg:grid-cols-3 gap-4">
-        <section className="lg:col-span-2 p-4 border rounded-2xl border-neutral-200 bg-white/80 shadow-[0_10px_30px_-25px_rgba(15,23,42,0.35)] animate-slide-up">
-          <div className="flex items-center justify-between">
-            <div className="font-semibold flex items-center gap-2"><CalendarPlus size={18} /> New Itinerary</div>
-            <span className="text-xs px-2 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-700">Tourist-facing</span>
+      <div className="grid lg:grid-cols-3 gap-6">
+        <section className="lg:col-span-2 p-6 rounded-2xl bg-white border-2 border-neutral-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="font-bold flex items-center gap-2 text-lg"><CalendarPlus className="text-orange-600" size={20} /> New Itinerary</div>
+            <span className="text-xs px-3 py-1 rounded-lg font-semibold border border-orange-300 bg-orange-50 text-orange-700">Tourist-facing</span>
           </div>
-          <div className="grid md:grid-cols-[1.05fr_1fr] gap-4 mt-3 text-sm">
-            <div className="grid gap-3">
-              <label className="grid gap-1">
-                Title
-                <input className="border rounded-lg px-3 py-2 bg-white/80" value={title} onChange={e=>setTitle(e.target.value)} placeholder="City Tour" />
+          <div className="grid md:grid-cols-[1.05fr_1fr] gap-6 text-sm">
+            <div className="grid gap-4">
+              <label className="grid gap-2">
+                <span className="font-semibold text-neutral-700">Title</span>
+                <input className="border-2 border-neutral-300 rounded-lg px-4 py-2 focus:outline-none focus:border-orange-500 transition-colors" value={title} onChange={e=>setTitle(e.target.value)} placeholder="City Tour" />
               </label>
-              <label className="grid gap-1">
-                When
-                <input className="border rounded-lg px-3 py-2 bg-white/80" type="datetime-local" value={when} onChange={e=>setWhen(e.target.value)} />
+              <label className="grid gap-2">
+                <span className="font-semibold text-neutral-700">When</span>
+                <input className="border-2 border-neutral-300 rounded-lg px-4 py-2 focus:outline-none focus:border-orange-500 transition-colors" type="datetime-local" value={when} onChange={e=>setWhen(e.target.value)} />
               </label>
-              <label className="grid gap-1">
-                Tourist User ID (optional)
-                <input className="border rounded-lg px-3 py-2 bg-white/80" value={userId} onChange={e=>setUserId(e.target.value)} placeholder="Attach to a specific tourist" />
+              <label className="grid gap-2">
+                <span className="font-semibold text-neutral-700">Tourist ID (Optional)</span>
+                <input className="border-2 border-neutral-300 rounded-lg px-4 py-2 focus:outline-none focus:border-orange-500 transition-colors" value={userId} onChange={e=>setUserId(e.target.value)} placeholder="Pin to specific tourist" />
               </label>
-              <div className="text-xs text-neutral-600">Location pins show on the tourist panel map and itinerary list.</div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button disabled={!canCreate} onClick={create} className={`px-4 py-2 rounded-full text-white ${canCreate ? 'bg-black' : 'bg-neutral-300 cursor-not-allowed'}`}>Create itinerary</button>
-                <button onClick={()=>{ setTitle('City Tour'); setWhen(''); setLat(''); setLng(''); setUserId('') }} className="px-3 py-2 rounded-full border border-neutral-300 bg-white/80">Reset</button>
+              <div className="text-xs text-neutral-600">Locations appear in tourist's itinerary list.</div>
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                <button disabled={!canCreate} onClick={create} className={`px-4 py-2 rounded-lg font-semibold text-white transition-colors ${canCreate ? 'bg-orange-600 hover:bg-orange-700' : 'bg-neutral-300 cursor-not-allowed'}`}>Create</button>
+                <button onClick={()=>{ setTitle('City Tour'); setWhen(''); setLat(''); setLng(''); setUserId('') }} className="px-4 py-2 rounded-lg border-2 border-neutral-300 hover:bg-neutral-50 font-semibold transition-colors">Reset</button>
               </div>
             </div>
-            <div className="grid gap-2">
-              <div className="text-xs text-neutral-600">Tap the map to pin a location.</div>
-              <div ref={mapRef} className="w-full h-64 rounded-xl border border-neutral-200 bg-white/70" />
-              <div className="text-xs text-neutral-600 flex items-center gap-2">
-                <MapPin size={12} />
+            <div className="grid gap-3">
+              <div className="text-xs text-neutral-600">Tap map to pin location</div>
+              <div ref={mapRef} className="w-full h-64 rounded-xl border-2 border-neutral-200 bg-white" />
+              <div className="text-xs p-2 rounded-lg bg-neutral-100 text-neutral-700 flex items-center gap-2">
                 {lat && lng ? `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}` : 'No location chosen'}
               </div>
             </div>
           </div>
         </section>
-        <section className="p-4 border rounded-2xl border-neutral-200 bg-white/80 shadow-[0_10px_30px_-25px_rgba(15,23,42,0.35)] animate-slide-up delay-100">
-          <div className="font-semibold mb-2">Upcoming</div>
-          {loading ? <div>Loading…</div> : (
-            <ul className="text-sm space-y-2">
+        <section className="p-6 rounded-2xl bg-white border-2 border-neutral-200 shadow-sm">
+          <div className="font-bold mb-4 text-lg">Upcoming Events</div>
+          {loading ? (
+            <div className="text-center py-8 text-neutral-500">Loading…</div>
+          ) : (
+            <ul className="text-sm space-y-3 max-h-96 overflow-auto">
               {items.map(it => (
-                <li key={it.id} className="p-3 rounded-xl border border-neutral-200 bg-white/80">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="font-medium flex items-center gap-2"><MapPin size={14} /> {it.title}</div>
-                      <div className="text-xs text-neutral-500">{new Date(it.when).toLocaleString()}</div>
+                <li key={it.id} className="p-4 rounded-lg border-2 border-neutral-200 hover:border-neutral-300 transition-colors">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex-1">
+                      <div className="font-semibold flex items-center gap-2">🗓️ {it.title}</div>
+                      <div className="text-xs text-neutral-600 mt-1">{new Date(it.when).toLocaleString()}</div>
                       {(it.lat && it.lng) && (
-                        <div className="text-xs text-neutral-500 mt-1">{Number(it.lat).toFixed(4)}, {Number(it.lng).toFixed(4)}</div>
+                        <div className="text-xs text-neutral-600 mt-1">{Number(it.lat).toFixed(4)}, {Number(it.lng).toFixed(4)}</div>
                       )}
                     </div>
-                    {it.user_id && <span className="text-xs px-2 py-0.5 rounded-full border border-neutral-200 bg-neutral-50">user {it.user_id}</span>}
                   </div>
+                  {it.user_id && <span className="text-xs px-2 py-1 rounded-lg border border-neutral-300 bg-neutral-50">user #{it.user_id}</span>}
                 </li>
               ))}
               {items.length === 0 && <li className="text-neutral-500">No itineraries</li>}
@@ -227,7 +227,7 @@ export default function AdminItineraries() {
               if (!planTitle.trim()) { alert('Enter a title'); return }
               if (pathPts.length < 2) { alert('Add at least 2 route points'); return }
               const body = { title: planTitle, data: { path: pathPts, checkpoints } }
-              const r = await api('/api/admin/itinerary-plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+              const r = await api('/admin/itinerary-plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
               if (r.ok) { alert('Plan saved'); setPlanTitle('Route Plan'); setPathPts([]); setCheckpoints([]); if (planPath.current) planPath.current.setLatLngs([]); if (cpLayerRef.current) cpLayerRef.current.clearLayers() } else alert('Failed to save plan')
             }} className={`self-start px-4 py-2 rounded-full text-white ${canSavePlan ? 'bg-black' : 'bg-neutral-300 cursor-not-allowed'}`}>Save Plan</button>
           </div>
@@ -242,7 +242,7 @@ function AdminPlansList() {
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const load = async () => {
-    const r = await api('/api/admin/itinerary-plans')
+    const r = await api('/admin/itinerary-plans')
     if (r.ok) setItems((await r.json()).items || [])
     setLoading(false)
   }

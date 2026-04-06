@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { api } from '../../src/lib/api'
 import dynamic from 'next/dynamic'
+import { QRScanner } from '../../src/components/QRScanner'
 const MapView = dynamic(() => import('../../src/components/MapView').then(m => m.MapView), { ssr: false })
-import { ShieldAlert, Loader2, AlertTriangle, Map, Home as HomeIcon, LogOut, MapPin, Clock, Battery, Wifi } from 'lucide-react'
+import { ShieldAlert, Loader2, AlertTriangle, Map, Home as HomeIcon, LogOut, MapPin, Clock, Battery, Wifi, QrCode } from 'lucide-react'
 
 export default function PoliceDashboard() {
   const router = useRouter()
+  const [showQRScanner, setShowQRScanner] = useState(false)
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
     const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null
@@ -19,9 +21,11 @@ export default function PoliceDashboard() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-black dark:text-white px-4 py-4">
       <Head><title>Police Dashboard - Zentora</title></Head>
+      {showQRScanner && <QRScanner onClose={() => setShowQRScanner(false)} />}
       <header className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold flex items-center gap-2"><ShieldAlert size={20} /> Police Dashboard</h1>
         <div className="flex items-center gap-2">
+          <button onClick={() => setShowQRScanner(true)} className="px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1"><QrCode size={16} /> Scan QR</button>
           <Link className="px-3 py-1.5 rounded border border-neutral-300 dark:border-neutral-700 flex items-center gap-1" href="/"><HomeIcon size={16} /> Home</Link>
           <button onClick={()=>{ localStorage.removeItem('token'); location.href='/login' }} className="px-3 py-1.5 rounded border border-neutral-300 dark:border-neutral-700 flex items-center gap-1"><LogOut size={16} /> Logout</button>
         </div>
@@ -52,7 +56,7 @@ function SOSList() {
   const [focused, setFocused] = useState<any | null>(null)
   const [me, setMe] = useState<{lat:number,lng:number}|null>(null)
   useEffect(() => {
-    api('/api/police/sos?status=open').then(async r => {
+    api('/police/sos?status=open').then(async r => {
       if (r.ok) setItems((await r.json()).items)
     }).finally(() => setLoading(false))
     const loc = typeof window !== 'undefined' ? window.location : null
@@ -80,7 +84,7 @@ function SOSList() {
     }
   }, [])
   const act = async (id: number, action: 'acknowledge'|'close') => {
-    const r = await api(`/api/alerts/${id}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) })
+    const r = await api(`/alerts/${id}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) })
     if (!r.ok) alert('Action failed')
   }
   if (loading) {
@@ -123,7 +127,7 @@ function IncidentsPanel() {
 
   useEffect(() => {
     // Load existing incidents
-    api('/api/police/incidents').then(async r => { if (r.ok) setItems((await r.json()).items || []) }).finally(()=>setLoading(false))
+    api('/police/incidents').then(async r => { if (r.ok) setItems((await r.json()).items || []) }).finally(()=>setLoading(false))
     // Live updates via WS
     const loc = typeof window !== 'undefined' ? window.location : null
     if (!loc) return

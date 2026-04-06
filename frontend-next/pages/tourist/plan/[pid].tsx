@@ -18,7 +18,7 @@ export default function TouristPlanPage() {
 
   useEffect(() => {
     if (!pid) return
-    api(`/api/itinerary-plans/${pid}`).then(async r => {
+    api(`/itinerary-plans/${pid}`).then(async r => {
       if (r.ok) setPlan(await r.json())
     })
   }, [pid])

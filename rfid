@@ -1,0 +1,153 @@
+RFID TOURIST UUID SYSTEM — FULL WORKFLOW
+
+---
+
+1. OVERVIEW
+
+---
+
+Goal:
+Store a unique UUID for each tourist on an RFID card.
+Use ESP32 / ESP8266 + RC522 to write/read data.
+Sync everything with a backend server and website.
+
+Core Idea:
+
+* RFID card stores ONLY UUID
+* Backend stores full tourist data
+* ESP acts as bridge between RFID and backend
+
+---
+
+2. SYSTEM ARCHITECTURE
+
+---
+
+[ Website (Admin Panel) ]
+↓
+[ Backend API (Node.js / Flask) ]
+↓
+[ ESP32 / ESP8266 (WiFi) ]
+↓
+[ RC522 RFID Module ]
+↓
+[ RFID Card (UUID stored) ]
+
+---
+
+3. DATA FLOW
+
+---
+
+A. REGISTER TOURIST
+admin slsect theusers 
+auto add the the tourist id 
+
+B. WRITE TO RFID
+
+1. Admin clicks "Write कार्ड"
+2. Backend marks UUID as "pending write"
+3. ESP fetches UUID via API
+4. Tourist taps RFID card
+5. ESP writes UUID to card
+6. ESP sends success response to backend
+
+C. READ FROM RFID
+
+1. Tourist taps card
+2. ESP reads UUID
+3. ESP sends UUID to backend
+4. Backend returns tourist data
+5. Data displayed on website/dashboard
+
+---
+
+4. HARDWARE SETUP
+
+---
+
+Components:
+
+* ESP32 or ESP8266 (CH340 USB supported)
+* RC522 RFID Module
+* RFID Cards
+
+ESP32 Wiring:
+SDA (SS) → GPIO 5
+SCK      → GPIO 18
+MOSI     → GPIO 23
+MISO     → GPIO 19
+RST      → GPIO 22
+3.3V     → 3.3V
+GND      → GND
+
+ESP8266 Wiring:
+SDA → D2
+SCK → D5
+MOSI → D7
+MISO → D6
+RST → D1
+
+---
+
+5. BACKEND API DESIGN
+
+---
+
+
+
+POST /write-success
+→ ESP confirms write complete
+
+POST /scan
+→ Input: UUID
+→ Returns tourist data
+
+---
+
+6. ESP LOGIC
+
+---
+
+MODE 1: WRITE MODE
+
+
+* Request UUID from backend
+* Wait for RFID card
+* Write UUID to card
+* Notify backend
+
+MODE 2: READ MODE
+
+* Wait for RFID card
+* Read UUID
+* Send UUID to backend
+* Receive tourist info
+
+---
+
+
+* "Write to Card" button
+* Live scan dashboard
+* History logs
+
+---
+
+8. IMPORTANT RULES
+
+---
+
+* NEVER store full data on RFID card
+* ALWAYS use backend for validation
+* Use WiFi, NOT USB for communication
+* Handle errors (no card, failed write, etc.)
+
+
+---
+
+
+* Buzzer sound for feedback
+* MQTT instead of HTTP
+* Offline caching if internet fails
+
+-

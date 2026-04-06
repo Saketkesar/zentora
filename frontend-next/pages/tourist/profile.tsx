@@ -3,12 +3,13 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { api, API_BASE } from '../../src/lib/api'
 import { Avatar } from '../../src/components/Avatar'
+import { TouristBottomNav } from '../../src/components/TouristBottomNav'
 
 export default function TouristProfile() {
   const [me, setMe] = useState<any>(null)
-  useEffect(() => { (async () => { const r = await api('/api/tourist/me'); if (r.ok) setMe(await r.json()) })() }, [])
+  useEffect(() => { (async () => { const r = await api('/tourist/me'); if (r.ok) setMe(await r.json()) })() }, [])
   return (
-    <div className="min-h-screen bg-white dark:bg-neutral-950 text-black dark:text-white px-4 py-4 max-w-md mx-auto">
+    <div className="min-h-screen bg-white dark:bg-neutral-950 text-black dark:text-white px-4 py-4 pb-32 max-w-md mx-auto">
       <Head><title>Profile - Tourist</title></Head>
       <header className="flex items-center justify-between mb-3">
         <h1 className="text-xl font-semibold">Profile</h1>
@@ -35,6 +36,7 @@ export default function TouristProfile() {
           )}
         </div>
       </div>
+      <TouristBottomNav />
     </div>
   )
 }

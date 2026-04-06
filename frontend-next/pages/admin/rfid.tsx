@@ -1,81 +1,102 @@
 import Head from 'next/head'
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../../src/lib/api'
 import { Avatar } from '../../src/components/Avatar'
-import { Shield, Cpu, Radio, BadgeCheck, AlertCircle, Loader2, ArrowLeft, Users as UsersIcon } from 'lucide-react'
+import { Shield, Radio, BadgeCheck, AlertCircle, Loader2, Users as UsersIcon, Wifi, Zap, CheckCircle, X } from 'lucide-react'
 import { useRouter } from 'next/router'
 
 type VerifiedUser = { id: number; name: string; email: string; profile_photo_url?: string | null }
+type ReadResult = { ok: boolean; valid: boolean; name: string; email: string; phone: string; tourist_uuid: string; kyc_status: string; kyc_documents: any[]; valid_from: string; valid_to: string; profile_photo_url: string }
 
 export default function AdminRFIDPage() {
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [users, setUsers] = useState<VerifiedUser[]>([])
+  const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<VerifiedUser | null>(null)
   const [tagId, setTagId] = useState('')
   const [chainId, setChainId] = useState('')
   const [binding, setBinding] = useState(false)
-  const [writeStage, setWriteStage] = useState<'idle'|'writing'|'success'|'error'>('idle')
+  
+  // Read popup state
+  const [showReadPopup, setShowReadPopup] = useState(false)
+  const [readingStage, setReadingStage] = useState<'placing' | 'reading' | 'success' | 'error'>('placing')
+  const [readResult, setReadResult] = useState<ReadResult | null>(null)
+  const [readError, setReadError] = useState('')
+
+  // Write popup state
+  const [showWritePopup, setShowWritePopup] = useState(false)
+  const [writingStage, setWritingStage] = useState<'placing' | 'writing' | 'success' | 'error'>('placing')
+  const [writeError, setWriteError] = useState('')
+
   const [verifications, setVerifications] = useState<any[]>([])
   const wsRef = useRef<WebSocket | null>(null)
-  // Web Serial state
-  const [serialSupported, setSerialSupported] = useState(false)
-  const [serialConnected, setSerialConnected] = useState(false)
-  const [serialStatus, setSerialStatus] = useState<string>('')
-  const [serialNote, setSerialNote] = useState<string>('')
-  const serialReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
-  const serialPortRef = useRef<any>(null)
-  const serialWriterRef = useRef<WritableStreamDefaultWriter<string> | null>(null)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Beep sound on success
+  const beep = (frequency = 880, duration = 200) => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const oscillator = audioContext.createOscillator()
+      const gainNode = audioContext.createGain()
+      oscillator.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+      oscillator.frequency.value = frequency
+      oscillator.type = 'sine'
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000)
+      oscillator.start(audioContext.currentTime)
+      oscillator.stop(audioContext.currentTime + duration / 1000)
+    } catch (e) {
+      console.log('Audio not supported')
+    }
+  }
+
+  // Close popups and disable modes
+  const closeReadPopup = async () => {
+    await api('/admin/rfid/mode/off', { method: 'POST' })
+    setShowReadPopup(false)
+    setReadingStage('placing')
+    setReadResult(null)
+    setReadError('')
+  }
+
+  const closeWritePopup = async () => {
+    await api('/admin/rfid/mode/off', { method: 'POST' })
+    setShowWritePopup(false)
+    setWritingStage('placing')
+    setWriteError('')
+  }
 
   useEffect(() => {
     const uid = router.query.user_id
     if (uid && typeof uid === 'string') {
-      // preselect user by id
-      api(`/api/admin/users/verified?user_id=${uid}`).then(async r => {
+      api(`/admin/users/verified?user_id=${uid}`).then(async r => {
         if (r.ok) {
           const data = await r.json()
           const item = (data.items || [])[0]
-          if (item) setSelected(item)
+          if (item) {
+            setSelected(item)
+          }
         }
       })
     }
-    const bc = router.query.blockchain_id
-    if (typeof bc === 'string' && bc) setChainId(bc)
-    const tag = router.query.tag_id
-    if (typeof tag === 'string' && tag) setTagId(tag.toUpperCase())
   }, [router.query.user_id])
 
-  // When a user is selected, try to prefill with their latest RFID binding
+  // When a user is selected, auto-fill RFID Tag ID with their Tourist UUID
   useEffect(() => {
     const run = async () => {
       if (!selected) return
-      // If query provided explicit values, respect them and don't override
-      const queryChain = (typeof router.query.blockchain_id === 'string' && router.query.blockchain_id) ? String(router.query.blockchain_id) : ''
-      const queryTag = (typeof router.query.tag_id === 'string' && router.query.tag_id) ? String(router.query.tag_id).toUpperCase() : ''
       try {
-        // Always start clean for a new selection unless query prefilled
-        if (!queryChain) setChainId('')
-        if (!queryTag) setTagId('')
-
-        // Prefill from latest binding first
-        const r = await api(`/api/admin/rfid/bindings?user_id=${selected.id}`)
+        // Get Tourist ID UUID and auto-fill tagId
+        const r = await api(`/admin/tourist-ids?user_id=${selected.id}`)
         if (r.ok) {
-          const d = await r.json()
-          const b = (d.items || [])[0]
-          if (b) {
-            if (!queryChain) setChainId(b.blockchain_id || '')
-            if (!queryTag) setTagId((b.tag_id || '').toUpperCase())
-          }
-        }
-        // If still no blockchain_id, fallback to latest Tourist ID's UUID
-        const chainNow = queryChain || chainId
-        if (!chainNow) {
-          const t = await api(`/api/admin/tourist-ids?user_id=${selected.id}`)
-          if (t.ok) {
-            const td = await t.json()
-            const latest = (td.items || [])[0]
-            if (latest?.uuid && !queryChain) setChainId(latest.uuid)
+          const data = await r.json()
+          const tid = (data.items || [])[0]
+          if (tid?.uuid) {
+            setTagId(tid.uuid)
+            setChainId(tid.uuid)
           }
         }
       } catch {}
@@ -83,47 +104,228 @@ export default function AdminRFIDPage() {
     run()
   }, [selected?.id])
 
-  const search = async (q: string) => {
+  // Search with debounce
+  const search = (q: string) => {
     setQuery(q)
-    const r = await api(`/api/admin/users/verified?q=${encodeURIComponent(q)}`)
-    if (r.ok) {
-      const data = await r.json()
-      setUsers(data.items || [])
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
+    if (!q.trim()) {
+      setUsers([])
+      return
     }
+    setLoading(true)
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const r = await api(`/admin/users/verified?q=${encodeURIComponent(q)}`)
+        if (r.ok) {
+          const data = await r.json()
+          setUsers(data.items || [])
+        }
+      } catch {
+        setUsers([])
+      } finally {
+        setLoading(false)
+      }
+    }, 300)
   }
 
   const bind = async () => {
-    if (!selected) { alert('Select a user first'); return }
-    if (!tagId.trim()) { alert('Enter Tag ID (from RFID)'); return }
+    if (!selected) { alert('Select a tourist first'); return }
+    if (!tagId.trim()) { alert('Enter RFID Tag ID'); return }
     setBinding(true)
     try {
-      const res = await api('/api/admin/rfid/bind', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: selected.id, tag_id: tagId.trim(), blockchain_id: chainId.trim() || undefined }) })
+      const res = await api('/admin/rfid/bind', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: selected.id, tag_id: tagId.trim(), blockchain_id: chainId.trim() || undefined }) })
       if (res.ok) {
-        // show small animation and indicate if Tourist ID was auto-created
-        try {
-          const d = await res.json()
-          if (d?.tourist_created) {
-            // Auto-prefill blockchain from returned tourist_id if empty
-            if (!chainId && d.tourist_id) setChainId(d.tourist_id)
-          }
-        } catch {}
-        setWriteStage('writing')
-        setTimeout(()=>setWriteStage('success'), 900)
+        alert('RFID Tag bound successfully!')
       } else {
-        setWriteStage('error')
-        alert('Bind failed')
+        alert('Failed to bind RFID tag')
       }
-    } finally { setBinding(false); setTimeout(()=>setWriteStage('idle'), 1500) }
+    } finally { 
+      setBinding(false)
+    }
   }
 
-  // Simulate device write UI animation only (actual writing occurs on device side)
-  const doWriteAnimation = () => {
-    setWriteStage('writing'); setTimeout(()=>setWriteStage('success'), 800)
-    setTimeout(()=>setWriteStage('idle'), 1500)
+  // Start Read popup with animation
+  const startReadPopup = async () => {
+    if (!selected?.id) { alert('Please select a tourist first'); return }
+    
+    // Enable read mode on backend
+    await api('/admin/rfid/mode/read-on', { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: selected.id })
+    })
+    
+    setReadingStage('placing')
+    setReadResult(null)
+    setReadError('')
+    setShowReadPopup(true)
+    
+    // Start polling for card (don't jump to reading stage yet)
+    waitForCardAndRead()
   }
 
+  const waitForCardAndRead = async () => {
+    console.log('🔵 READ: Waiting for card to be placed...')
+    
+    try {
+      let cardResult = null
+      let attempts = 0
+      
+      // STAGE 1: "placing" - Wait for card detection
+      while (!cardResult && attempts < 60) { // 60 * 500ms = 30 seconds
+        try {
+          const readRes = await api('/rfid/last-read')
+          
+          if (readRes.ok) {
+            const result = await readRes.json()
+            console.log('🔵 READ: Poll #' + attempts + ':', result)
+            // Check if result is actual data (not just {ok: false})
+            if (result && result.ok && result.user_id) {
+              cardResult = result
+              break
+            }
+          }
+        } catch (e) {
+          // Keep polling
+          console.log('🔵 READ: Waiting... (' + attempts + '/60)')
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 500))
+        attempts++
+      }
+      
+      if (!cardResult) {
+        // Timeout - no card detected
+        console.log('❌ READ: Timeout - no card detected')
+        setReadError('No card detected (timeout 30s)')
+        setReadingStage('error')
+        beep(400, 300)
+        return
+      }
+      
+      // STAGE 2: "reading" - Card detected!
+      console.log('✅ READ: Card detected! Moving to reading stage...')
+      setReadingStage('reading')
+      
+      // Show success
+      setReadResult(cardResult)
+      setReadingStage('success')
+      beep(880, 200)
+      beep(880, 200)
+      beep(880, 200)
+    } catch (e) {
+      console.error('❌ READ Error:', e)
+      setReadError('Error reading card: ' + (e as any).message)
+      setReadingStage('error')
+      beep(400, 300)
+    }
+  }
+
+  // Start Write popup with animation
+  const startWritePopup = async () => {
+    if (!selected?.id) { alert('Please select a tourist first'); return }
+    
+    // Enable write mode on backend
+    await api('/admin/rfid/mode/write-on', { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: selected.id })
+    })
+    
+    setWritingStage('placing')
+    setWriteError('')
+    setShowWritePopup(true)
+    
+    // Start polling for card (don't jump to writing stage yet)
+    waitForCardAndWrite()
+  }
+
+  const waitForCardAndWrite = async () => {
+    console.log('🟣 WRITE: Waiting for card to be placed...')
+    
+    try {
+      // Get UUID to write
+      const getRes = await api(`/rfid/write/get-uuid?user_id=${selected?.id}`)
+      if (!getRes.ok) {
+        setWriteError('Failed to get UUID')
+        setWritingStage('error')
+        beep(400, 300)
+        return
+      }
+      
+      const { uuid } = await getRes.json()
+      console.log('🟣 WRITE: UUID to write:', uuid)
+      setTagId(uuid)
+      
+      let cardWritten = null
+      let attempts = 0
+      
+      // STAGE 1: "placing" - Wait for card detection
+      while (!cardWritten && attempts < 60) { // 60 * 500ms = 30 seconds
+        try {
+          const writeCheckRes = await api('/rfid/last-write')
+          if (writeCheckRes.ok) {
+            const writeCheck = await writeCheckRes.json()
+            console.log('🟣 WRITE: Poll #' + attempts + ':', writeCheck)
+            if (writeCheck && writeCheck.uuid === uuid) {
+              cardWritten = true
+              break
+            }
+          }
+        } catch (e) {
+          // Keep polling
+          console.log('🟣 WRITE: Waiting... (' + attempts + '/60)')
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 500))
+        attempts++
+      }
+      
+      if (!cardWritten) {
+        // Timeout - no card detected
+        console.log('❌ WRITE: Timeout - no card detected')
+        setWriteError('No card detected - timeout (30s)')
+        setWritingStage('error')
+        beep(400, 300)
+        return
+      }
+      
+      // STAGE 2: "writing" - Card detected!
+      console.log('✅ WRITE: Card detected! Moving to writing stage...')
+      setWritingStage('writing')
+      
+      // Now create the binding in database
+      const bindRes = await api('/admin/rfid/bind', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: selected?.id,
+          tag_id: uuid,
+          blockchain_id: uuid
+        })
+      })
+      
+      if (bindRes.ok) {
+        // Show success
+        setWritingStage('success')
+        beep(880, 200)
+        beep(880, 200)
+        beep(880, 200)
+      } else {
+        setWriteError('Failed to bind card')
+        setWritingStage('error')
+        beep(400, 300)
+      }
+    } catch (e) {
+      console.error('❌ WRITE Error:', e)
+      setWriteError('Error writing tag: ' + (e as any).message)
+      setWritingStage('error')
+      beep(400, 300)
+    }
+  }
+
+  // Live verification feed via WebSocket
   useEffect(() => {
-    // live verification feed
     const loc = typeof window !== 'undefined' ? window.location : null
     if (!loc) return
     const proto = loc.protocol === 'https:' ? 'wss' : 'ws'
@@ -136,7 +338,6 @@ export default function AdminRFIDPage() {
         if (msg.event === 'rfid_scan' && msg.data) {
           const data = msg.data
           setVerifications(v => [{...data, ts: Date.now()}, ...v].slice(0, 20))
-          // auto-fill Tag ID if empty
           setTagId(prev => prev && prev.length ? prev : (data.tag_id || ''))
         }
       } catch {}
@@ -144,277 +345,366 @@ export default function AdminRFIDPage() {
     return () => { ws.close() }
   }, [])
 
-  // Detect Web Serial support
-  useEffect(() => {
-    try {
-      const nav: any = navigator as any
-      setSerialSupported(!!(nav && nav.serial))
-    } catch {
-      setSerialSupported(false)
-    }
-  }, [])
-
-  const disconnectSerial = async () => {
-    try {
-      setSerialStatus('Disconnecting…')
-      const writer = serialWriterRef.current
-      if (writer) {
-        try { await writer.close() } catch {}
-        try { writer.releaseLock() } catch {}
-      }
-      const reader = serialReaderRef.current
-      if (reader) {
-        try { await reader.cancel() } catch {}
-        try { reader.releaseLock() } catch {}
-      }
-      const port = serialPortRef.current
-      if (port) {
-        try { await port.close() } catch {}
-      }
-    } finally {
-      serialReaderRef.current = null
-      serialPortRef.current = null
-      setSerialConnected(false)
-      setSerialStatus('Disconnected')
-    }
-  }
-
-  const connectSerial = async () => {
-    try {
-      const nav: any = navigator as any
-      if (!nav.serial) { setSerialStatus('Web Serial not supported'); return }
-      setSerialStatus('Requesting device…')
-      // Optional: CH340 filter VID/PID (1A86:7523) - but keep open to others
-      const filters = [ { usbVendorId: 0x1A86, usbProductId: 0x7523 } ]
-      let port: any
-      try {
-        port = await nav.serial.requestPort({ filters })
-      } catch (e) {
-        // user cancelled or no device
-        setSerialStatus('No device selected')
-        return
-      }
-      setSerialStatus('Opening…')
-      await port.open({ baudRate: 115200 })
-      serialPortRef.current = port
-      setSerialConnected(true)
-      setSerialStatus('Connected')
-  // Setup read pipeline
-  const decoder = new TextDecoderStream()
-  const reader = port.readable.pipeThrough(decoder).getReader()
-      serialReaderRef.current = reader as any
-  // Setup write pipeline
-  const encoder = new TextEncoderStream()
-  encoder.readable.pipeTo(port.writable)
-  const writer = encoder.writable.getWriter()
-  serialWriterRef.current = writer as any
-      let buffer = ''
-      const processLine = async (line: string) => {
-        const s = line.trim()
-        if (!s) return
-        // TAG:UID
-        const mTag = s.match(/^TAG:([0-9A-F]+)$/i)
-        if (mTag) {
-          const uid = mTag[1].toUpperCase()
-          setTagId(uid)
-          setSerialNote(`Scanned UID ${uid}`)
-          try {
-            const r = await api('/api/rfid/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tag_id: uid }) })
-            if (r.ok) {
-              const data = await r.json()
-              setVerifications(v => [{ tag_id: uid, ...data, ts: Date.now() }, ...v].slice(0,20))
-            }
-          } catch {}
-          return
-        }
-        // READ:<payload>
-        const mRead = s.match(/^READ:(.*)$/)
-        if (mRead) {
-          const payload = mRead[1]
-          // Always reflect the read payload in the field for confirmation
-          setChainId(payload)
-          setSerialNote(`Read data: ${payload}`)
-          return
-        }
-        if (s === 'WRITE_OK') { setSerialNote('Write successful'); return }
-        if (s === 'WRITE_ERR') { setSerialNote('Write failed'); return }
-        if (s.startsWith('ERR:')) { setSerialNote(s); return }
-        if (s === 'OK') { return }
-      }
-      ;(async () => {
-        try {
-          while (true) {
-            const { value, done } = await reader.read()
-            if (done) break
-            if (typeof value === 'string') {
-              buffer += value
-            } else if (value) {
-              buffer += new TextDecoder().decode(value)
-            }
-            let idx: number
-            while ((idx = buffer.indexOf('\n')) >= 0) {
-              const line = buffer.slice(0, idx)
-              buffer = buffer.slice(idx + 1)
-              await processLine(line)
-            }
-          }
-        } catch (e) {
-          setSerialStatus('Read error')
-        } finally {
-          await disconnectSerial()
-        }
-      })()
-    } catch (e) {
-      setSerialStatus('Connection failed')
-      await disconnectSerial()
-    }
-  }
-
-  const sendSerial = async (line: string) => {
-    try {
-      const w = serialWriterRef.current
-      if (!serialConnected || !w) { setSerialStatus('Not connected'); return false }
-      await w.write(line.endsWith('\n') ? line : (line + '\n'))
-      return true
-    } catch {
-      setSerialStatus('Write failed')
-      return false
-    }
-  }
-
-  const scanUsb = async () => {
-    setSerialStatus('Scanning…')
-    await sendSerial('SCAN')
-  }
-
-  const writeUsb = async () => {
-    if (!chainId.trim()) { alert('Enter Blockchain ID to write (will be truncated to 32 bytes)'); return }
-    setSerialStatus('Writing…')
-    await sendSerial(`WRITE:${chainId.trim()}`)
-  }
-
-  const readUsb = async () => {
-    setSerialStatus('Reading…')
-    await sendSerial('READ')
-  }
-
   return (
-    <div className="min-h-screen bg-white text-black px-3 sm:px-4 py-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 text-black px-3 sm:px-4 py-6">
       <Head><title>RFID - Admin</title></Head>
-      <header className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold flex items-center gap-2"><Radio className="text-neutral-700" size={20} /> RFID</h1>
+      
+      <header className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold flex items-center gap-3"><Radio className="text-purple-600" size={28} /> RFID Tag Manager</h1>
         <div className="flex items-center gap-2">
-          <Link href="/admin/users" className="underline text-sm inline-flex items-center gap-1"><UsersIcon className="text-neutral-700" size={16} /> Users</Link>
-          <Link href="/admin/dashboard" className="underline text-sm inline-flex items-center gap-1"><Shield className="text-neutral-700" size={16} /> Dashboard</Link>
+          <Link href="/admin/users" className="px-3 py-2 rounded-lg border-2 border-neutral-300 bg-white hover:bg-neutral-50 transition-colors inline-flex items-center gap-2 text-sm font-medium"><UsersIcon size={16} /> Users</Link>
+          <Link href="/admin/dashboard" className="px-3 py-2 rounded-lg border-2 border-neutral-300 bg-white hover:bg-neutral-50 transition-colors inline-flex items-center gap-2 text-sm font-medium"><Shield size={16} /> Dashboard</Link>
         </div>
       </header>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <section className="p-4 border rounded-2xl border-neutral-200">
-          <div className="text-sm font-medium mb-2">Bind RFID to Tourist</div>
-          {serialSupported ? (
-            <div className="mb-3 flex items-center gap-2 text-sm">
-              <button onClick={serialConnected ? disconnectSerial : connectSerial} className={`px-2 py-1 rounded border ${serialConnected? 'border-rose-300 text-rose-700':'border-neutral-300'}`}>{serialConnected? 'Disconnect Device':'Connect Device (USB)'}</button>
-              <span className="text-neutral-600">{serialStatus}</span>
-              {serialConnected && (
-                <>
-                  <button onClick={scanUsb} className="px-2 py-1 rounded border border-neutral-300">Scan UID (USB)</button>
-                  <button onClick={writeUsb} className="px-2 py-1 rounded border border-neutral-300">Write Tag (USB)</button>
-                  <button onClick={readUsb} className="px-2 py-1 rounded border border-neutral-300">Read Tag (USB)</button>
-                  <button onClick={async()=>{
-                    try {
-                      let val = chainId.trim()
-                      if (!val && selected) {
-                        const t = await api(`/api/admin/tourist-ids?user_id=${selected.id}`)
-                        if (t.ok) {
-                          const td = await t.json()
-                          const latest = (td.items || [])[0]
-                          if (latest?.uuid) { val = latest.uuid; setChainId(latest.uuid) }
-                        }
-                      }
-                      if (!val) { alert('No Tourist UUID available to write'); return }
-                      setSerialStatus('Writing…')
-                      await sendSerial(`WRITE:${val}`)
-                    } catch {}
-                  }} className="px-2 py-1 rounded border border-neutral-300">Write Tourist UUID (USB)</button>
-                </>
-              )}
+      <div className="grid md:grid-cols-3 gap-6 max-w-7xl mx-auto">
+        {/* Left: Bind section */}
+        <section className="md:col-span-2 p-6 rounded-2xl bg-white border-2 border-neutral-200 shadow-sm">
+          <div className="text-lg font-bold mb-6 flex items-center gap-2"><Wifi size={20} className="text-blue-600" /> RFID Binding</div>
+          
+          {/* Search */}
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-neutral-700 mb-3">Search Tourist</label>
+            <div className="relative">
+              <input 
+                value={query} 
+                onChange={e => search(e.target.value)} 
+                placeholder="Search by name, email or phone..." 
+                className="w-full px-4 py-3 rounded-lg border-2 border-neutral-300 focus:outline-none focus:border-blue-500 transition-colors" 
+              />
+              {loading && <Loader2 className="absolute right-3 top-3 animate-spin text-neutral-400" size={20} />}
             </div>
-          ) : (
-            <div className="mb-3 text-xs text-neutral-500">Web Serial not supported. Use Chrome/Edge on https:// or localhost.</div>
-          )}
-          <div className="grid gap-3">
-            {serialNote && <div className="text-xs text-neutral-600">{serialNote}</div>}
-            <div>
-              <label className="text-xs text-neutral-600">Search verified user</label>
-              <input value={query} onChange={e=>search(e.target.value)} placeholder="name / email / phone" className="mt-1 w-full px-3 py-2 rounded border border-neutral-300" />
-            </div>
-            <div className="max-h-40 overflow-auto rounded border border-neutral-200">
-              {users.map(u => (
-                <button key={u.id} onClick={()=>{
-                  // On manual selection, reset fields to avoid leaking previous user's values
-                  const hasQueryChain = typeof router.query.blockchain_id === 'string' && router.query.blockchain_id
-                  const hasQueryTag = typeof router.query.tag_id === 'string' && router.query.tag_id
-                  if (!hasQueryChain) setChainId('')
-                  if (!hasQueryTag) setTagId('')
-                  setSelected(u)
-                }} className={`w-full text-left px-3 py-2 border-b last:border-b-0 ${selected?.id===u.id? 'bg-emerald-50':''}`}>
-                  <div className="flex items-center gap-2">
-                    <Avatar src={u.profile_photo_url ? `/api/proxy${u.profile_photo_url}` : undefined} alt={u.name} size={24} className="w-6 h-6" />
-                    <div>
-                      <div className="font-medium">{u.name}</div>
-                      <div className="text-xs text-neutral-500">{u.email}</div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-            {selected && (
-              <div className="p-3 rounded border border-neutral-200 bg-white">
-                <div className="text-sm">Selected: <span className="font-medium">{selected.name}</span></div>
-                <div className="grid sm:grid-cols-2 gap-3 mt-2">
-                  <div>
-                    <label className="text-xs text-neutral-600">RFID Tag ID</label>
-                    <input value={tagId} onChange={e=>setTagId(e.target.value.toUpperCase())} placeholder="e.g. A1B2C3D4" className="mt-1 w-full px-3 py-2 rounded border border-neutral-300 font-mono" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-neutral-600">Blockchain ID (optional)</label>
-                    <input value={chainId} onChange={e=>setChainId(e.target.value)} placeholder="0x.. or tx hash" className="mt-1 w-full px-3 py-2 rounded border border-neutral-300" />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 mt-3">
-                  <button onClick={bind} disabled={binding} className="px-3 py-1.5 rounded bg-black text-white inline-flex items-center gap-2">{binding ? (<><Loader2 size={16} className="animate-spin"/> Binding…</>) : 'Bind tag'}</button>
-                  <button onClick={doWriteAnimation} className="px-3 py-1.5 rounded border border-neutral-300 inline-flex items-center gap-2"><Cpu size={16}/> Simulate write</button>
-                </div>
-                <div className="h-10 mt-3">
-                  {writeStage==='writing' && <div className="px-3 py-2 rounded-lg bg-blue-50 text-blue-700 inline-flex items-center gap-2"><Loader2 size={16} className="animate-spin"/> Writing in progress…</div>}
-                  {writeStage==='success' && <div className="px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 inline-flex items-center gap-2"><BadgeCheck size={16}/> Success</div>}
-                  {writeStage==='error' && <div className="px-3 py-2 rounded-lg bg-rose-50 text-rose-700 inline-flex items-center gap-2"><AlertCircle size={16}/> Failed</div>}
-                </div>
+
+            {/* Search Results */}
+            {query && (
+              <div className="mt-3 max-h-56 overflow-auto rounded-lg border-2 border-neutral-200 bg-neutral-50">
+                {users.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-neutral-500">No tourists found</div>
+                ) : (
+                  users.map(u => (
+                    <button 
+                      key={u.id} 
+                      onClick={() => {
+                        setSelected(u)
+                        setQuery('')
+                        setUsers([])
+                      }} 
+                      className={`w-full text-left px-4 py-3 border-b last:border-b-0 transition-colors ${selected?.id === u.id ? 'bg-blue-100' : 'hover:bg-neutral-100'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar src={u.profile_photo_url ? `/api/proxy${u.profile_photo_url}` : undefined} alt={u.name} size={32} className="w-8 h-8 rounded-lg" />
+                        <div>
+                          <div className="font-semibold text-sm">{u.name}</div>
+                          <div className="text-xs text-neutral-500">{u.email}</div>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
             )}
           </div>
+
+          {/* Selected Tourist Details */}
+          {selected && (
+            <div className="space-y-6">
+              <div className="p-4 rounded-lg border-2 border-blue-200 bg-blue-50">
+                <div className="flex items-center gap-3">
+                  <Avatar src={selected.profile_photo_url ? `/api/proxy${selected.profile_photo_url}` : undefined} alt={selected.name} size={40} className="w-10 h-10 rounded-lg" />
+                  <div>
+                    <div className="font-semibold text-sm">{selected.name}</div>
+                    <div className="text-xs text-neutral-600">{selected.email}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Auto-filled RFID Tag ID */}
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-2">RFID Tag ID (Auto-filled from Tourist UUID)</label>
+                <input 
+                  value={tagId} 
+                  onChange={e => setTagId(e.target.value)} 
+                  placeholder="Auto-filled..." 
+                  className="w-full px-4 py-2 rounded-lg border-2 border-neutral-300 font-mono text-xs focus:outline-none focus:border-blue-500 transition-colors bg-neutral-50" 
+                  readOnly
+                />
+                <p className="text-xs text-neutral-500 mt-2">This UUID will be written to the RFID card</p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-3 gap-3">
+                <button 
+                  onClick={bind} 
+                  disabled={binding} 
+                  className="px-4 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50 inline-flex items-center justify-center gap-2 transition-colors text-sm"
+                >
+                  {binding ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin"/> Binding
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} /> Bind
+                    </>
+                  )}
+                </button>
+                <button 
+                  onClick={startReadPopup}
+                  className="px-4 py-3 rounded-lg border-2 border-green-300 hover:bg-green-50 font-semibold inline-flex items-center justify-center gap-2 transition-colors text-sm"
+                >
+                  <Wifi size={16} /> Read
+                </button>
+                <button 
+                  onClick={startWritePopup}
+                  className="px-4 py-3 rounded-lg border-2 border-purple-300 hover:bg-purple-50 font-semibold inline-flex items-center justify-center gap-2 transition-colors text-sm"
+                >
+                  <Zap size={16} /> Write
+                </button>
+              </div>
+            </div>
+          )}
         </section>
 
-        <section className="p-4 border rounded-2xl border-neutral-200">
-          <div className="text-sm font-medium mb-2">Live Verification</div>
-          <div className="text-xs text-neutral-600 mb-2">When a tourist taps their card at a checkpoint, you’ll see the result below with animations.</div>
-          <div className="grid gap-2">
-            {verifications.map(v => (
-              <div key={v.ts+v.tag_id} className={`p-3 rounded-xl border ${v.valid? 'border-emerald-300 bg-emerald-50':'border-rose-300 bg-rose-50'} animate-[pulse_0.6s_ease-out_1]`}>
-                <div className="flex items-center justify-between">
-                  <div className="font-mono text-xs">{v.tag_id}</div>
-                  <div className={`px-2 py-0.5 rounded text-xs ${v.valid? 'bg-emerald-100 text-emerald-700':'bg-rose-100 text-rose-700'}`}>{v.valid? 'VALID':'INVALID'}</div>
-                </div>
-                <div className="text-sm mt-1">{v.name_masked || 'Unknown'} {v.tourist_id ? (<span className="ml-2 font-mono text-xs">{String(v.tourist_id).slice(0,8)}…</span>) : null}</div>
-                {v.valid_from && v.valid_to && (
-                  <div className="text-xs text-neutral-600">{v.valid_from.replace('T',' ').replace('Z','')} → {v.valid_to.replace('T',' ').replace('Z','')}</div>
-                )}
+        {/* Right: Live Feed */}
+        <section className="p-6 rounded-2xl bg-white border-2 border-neutral-200 shadow-sm">
+          <div className="text-lg font-bold mb-2 flex items-center gap-2"><Zap size={20} className="text-purple-600" /> Live Feed</div>
+          <p className="text-xs text-neutral-600 mb-4">Real-time verification events from checkpoints</p>
+          <div className="grid gap-2 max-h-96 overflow-auto">
+            {verifications.length === 0 ? (
+              <div className="p-6 text-center rounded-lg bg-neutral-50 border-2 border-dashed border-neutral-300">
+                <Radio className="inline-block mb-2 text-neutral-300" size={32} />
+                <p className="text-neutral-500 text-xs">Waiting for events...</p>
               </div>
-            ))}
+            ) : (
+              verifications.map(v => (
+                <div 
+                  key={v.ts + v.tag_id} 
+                  className={`p-3 rounded-lg border-2 text-xs animate-[pulse_0.6s_ease-out_1] ${v.valid ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="font-mono font-bold text-xs text-black">{v.tag_id}</div>
+                    <div className={`px-2 py-1 rounded text-xs font-semibold ${
+                      v.valid ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                    }`}>
+                      {v.valid ? 'VALID' : 'INVALID'}
+                    </div>
+                  </div>
+                  <div className="font-medium text-xs">{v.name_masked || 'Unknown'}</div>
+                </div>
+              ))
+            )}
           </div>
         </section>
       </div>
+
+      {/* READ POPUP - Card Tap Animation */}
+      {showReadPopup && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative">
+            {/* Close Button */}
+            <button 
+              onClick={closeReadPopup}
+              className="absolute top-4 right-4 p-2 hover:bg-neutral-100 rounded-full transition-colors"
+            >
+              <X size={20} className="text-neutral-600" />
+            </button>
+
+            {readingStage === 'placing' && (
+              <div className="text-center">
+                <div className="mb-6">
+                  <div className="w-28 h-40 mx-auto bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl flex items-center justify-center relative border-2 border-emerald-200">
+                    {/* Card Shadow/3D Effect */}
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/20 to-transparent"></div>
+                    <div className="absolute inset-2 rounded-xl border-2 border-emerald-300/50"></div>
+                    <div className="text-center z-10">
+                      <Wifi className="mx-auto text-emerald-600 mb-2 animate-pulse" size={32} />
+                      <div className="text-xs font-bold text-emerald-700">RFID Card</div>
+                    </div>
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Ready to Read</h2>
+                <p className="text-neutral-600 mb-2">Tap the RFID card on the reader</p>
+                <div className="text-sm text-neutral-500 animate-pulse">Waiting for card...</div>
+              </div>
+            )}
+
+            {readingStage === 'reading' && (
+              <div className="text-center">
+                <div className="mb-6">
+                  <div className="w-28 h-40 mx-auto bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl flex items-center justify-center relative border-2 border-blue-300 animate-bounce">
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/20 to-transparent"></div>
+                    <div className="absolute inset-2 rounded-xl border-2 border-blue-300/50"></div>
+                    <Loader2 className="text-blue-600 animate-spin z-10" size={32} />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Reading Card</h2>
+                <p className="text-neutral-600">Please hold steady...</p>
+              </div>
+            )}
+
+            {readingStage === 'success' && readResult && (
+              <div className="text-center">
+                <div className="mb-4 flex justify-center">
+                  <div className="bg-emerald-100 rounded-full p-3">
+                    <BadgeCheck className="text-emerald-600" size={32} />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold mb-4">Card Read Successfully</h2>
+                
+                <div className="bg-neutral-50 rounded-lg p-4 text-left mb-4 max-h-48 overflow-auto">
+                  <div className="mb-3">
+                    <div className="text-xs font-semibold text-neutral-600 mb-1">Tourist Name</div>
+                    <div className="font-bold text-black">{readResult.name}</div>
+                  </div>
+                  <div className="mb-3">
+                    <div className="text-xs font-semibold text-neutral-600 mb-1">Email</div>
+                    <div className="text-sm text-black">{readResult.email}</div>
+                  </div>
+                  <div className="mb-3">
+                    <div className="text-xs font-semibold text-neutral-600 mb-1">Phone</div>
+                    <div className="text-sm text-black">{readResult.phone}</div>
+                  </div>
+                  <div className="mb-3">
+                    <div className="text-xs font-semibold text-neutral-600 mb-1">KYC Status</div>
+                    <div className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
+                      readResult.kyc_status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                      readResult.kyc_status === 'rejected' ? 'bg-rose-100 text-rose-700' :
+                      'bg-amber-100 text-amber-700'
+                    }`}>
+                      {readResult.kyc_status.toUpperCase()}
+                    </div>
+                  </div>
+                  {readResult.valid_from && readResult.valid_to && (
+                    <div>
+                      <div className="text-xs font-semibold text-neutral-600 mb-1">Valid Period</div>
+                      <div className="text-xs text-black">{readResult.valid_from.split('T')[0]} → {readResult.valid_to.split('T')[0]}</div>
+                    </div>
+                  )}
+                </div>
+
+                <button 
+                  onClick={closeReadPopup}
+                  className="w-full px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors text-sm"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+
+            {readingStage === 'error' && (
+              <div className="text-center">
+                <div className="mb-4 flex justify-center">
+                  <div className="bg-rose-100 rounded-full p-3">
+                    <AlertCircle className="text-rose-600" size={32} />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold mb-2 text-rose-700">Read Failed</h2>
+                <p className="text-neutral-600 mb-4">{readError || 'Unable to read the card'}</p>
+                <button 
+                  onClick={() => {
+                    setReadingStage('placing')
+                    setReadResult(null)
+                    setReadError('')
+                  }}
+                  className="w-full px-4 py-2 rounded-lg bg-rose-600 text-white font-semibold hover:bg-rose-700 transition-colors text-sm"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* WRITE POPUP - Card Placement Animation */}
+      {showWritePopup && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative">
+            {/* Close Button */}
+            <button 
+              onClick={closeWritePopup}
+              className="absolute top-4 right-4 p-2 hover:bg-neutral-100 rounded-full transition-colors"
+            >
+              <X size={20} className="text-neutral-600" />
+            </button>
+
+            {writingStage === 'placing' && (
+              <div className="text-center">
+                <div className="mb-6 relative h-48 flex items-center justify-center">
+                  {/* Sensor */}
+                  <div className="absolute w-32 h-32 bg-gradient-to-br from-purple-200 to-purple-100 rounded-3xl border-3 border-purple-400 flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-purple-300/20 to-transparent"></div>
+                    <Zap className="text-purple-600 animate-pulse z-10" size={40} />
+                  </div>
+                  {/* Card - shows dropping animation */}
+                  <div className="absolute w-28 h-40 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl border-2 border-emerald-300 flex items-center justify-center animate-bounce" style={{animationDelay: '0.2s'}}>
+                    <Wifi className="text-emerald-600" size={32} />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Place Card on Sensor</h2>
+                <p className="text-neutral-600">Position your RFID card over the reader</p>
+              </div>
+            )}
+
+            {writingStage === 'writing' && (
+              <div className="text-center">
+                <div className="mb-6">
+                  <div className="w-32 h-40 mx-auto bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl flex items-center justify-center relative border-2 border-purple-300">
+                    <div className="absolute inset-0 rounded-2xl animate-pulse bg-purple-200/20"></div>
+                    <div className="absolute inset-2 rounded-xl border-2 border-purple-400/50 animate-[pulse_1s_ease-in-out_infinite]"></div>
+                    <Loader2 className="text-purple-600 animate-spin z-10" size={32} />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Writing Card</h2>
+                <p className="text-neutral-600">UUID: {tagId.substring(0, 12)}...</p>
+                <div className="text-sm text-neutral-500 animate-pulse mt-2">Keep card in place...</div>
+              </div>
+            )}
+
+            {writingStage === 'success' && (
+              <div className="text-center">
+                <div className="mb-4 flex justify-center">
+                  <div className="bg-emerald-100 rounded-full p-3">
+                    <CheckCircle className="text-emerald-600" size={32} />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Card Written Successfully</h2>
+                <p className="text-neutral-600 mb-4">RFID tag is now bound to {selected?.name}</p>
+                <div className="bg-neutral-50 rounded-lg p-3 text-left mb-4 text-xs">
+                  <div className="font-mono text-neutral-700">{tagId}</div>
+                </div>
+                <button 
+                  onClick={closeWritePopup}
+                  className="w-full px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors text-sm"
+                >
+                  Done
+                </button>
+              </div>
+            )}
+
+            {writingStage === 'error' && (
+              <div className="text-center">
+                <div className="mb-4 flex justify-center">
+                  <div className="bg-rose-100 rounded-full p-3">
+                    <AlertCircle className="text-rose-600" size={32} />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold mb-2 text-rose-700">Write Failed</h2>
+                <p className="text-neutral-600 mb-4">{writeError || 'Unable to write to card'}</p>
+                <button 
+                  onClick={() => {
+                    setWritingStage('placing')
+                    setWriteError('')
+                  }}
+                  className="w-full px-4 py-2 rounded-lg bg-rose-600 text-white font-semibold hover:bg-rose-700 transition-colors text-sm"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

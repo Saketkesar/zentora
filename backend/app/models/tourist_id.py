@@ -9,6 +9,7 @@ class TouristID(Base):
     user_id: Mapped[int] = mapped_column(Integer, index=True)
     uuid: Mapped[str] = mapped_column(String(64), unique=True)
     qr_path: Mapped[str] = mapped_column(String(255))
+    profile_photo_path: Mapped[str] = mapped_column(String(255), nullable=True)
     valid_from: Mapped[datetime] = mapped_column(DateTime)
     valid_to: Mapped[datetime] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

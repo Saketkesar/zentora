@@ -5,7 +5,18 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8001'
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { path = [] } = req.query
   const targetPath = Array.isArray(path) ? path.join('/') : path
-  const url = `${API_BASE}/${targetPath}`
+  const isStatic = targetPath.startsWith('static/')
+  
+  // Build query string from all query params except 'path'
+  const queryParams = new URLSearchParams()
+  for (const [key, value] of Object.entries(req.query)) {
+    if (key !== 'path' && value) {
+      const val = Array.isArray(value) ? value[0] : value
+      queryParams.append(key, val)
+    }
+  }
+  const queryString = queryParams.toString()
+  const url = `${API_BASE}${isStatic ? '' : '/api'}/${targetPath}${queryString ? '?' + queryString : ''}`
 
   try {
     const headers: Record<string, string> = {}
@@ -62,8 +73,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } catch (err) {
       // Fallback attempts if API_BASE host resolution fails
       const tryUrls = [
-        `http://backend:8000/${targetPath}`,
-        `http://localhost:8001/${targetPath}`,
+        `http://backend:8000${isStatic ? '' : '/api'}/${targetPath}${queryString ? '?' + queryString : ''}`,
+        `http://localhost:8001${isStatic ? '' : '/api'}/${targetPath}${queryString ? '?' + queryString : ''}`,
       ]
       let lastErr = err
       for (const u of tryUrls) {

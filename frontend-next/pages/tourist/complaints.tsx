@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from '../../src/lib/api'
 import { useRouter } from 'next/router'
 import { MapPin, UploadCloud, Loader2, Image as ImageIcon, ArrowLeft } from 'lucide-react'
+import { TouristBottomNav } from '../../src/components/TouristBottomNav'
 
 export default function Complaints() {
   const [desc, setDesc] = useState('')
@@ -42,17 +43,8 @@ export default function Complaints() {
       if (file) fd.append('image', file)
       if (lat != null) fd.append('lat', String(lat))
       if (lng != null) fd.append('lng', String(lng))
-      // Try proxy first
-      let ok = false
-      try {
-        const res = await fetch(`${window.location.origin}/api/proxy/incidents`, { method: 'POST', body: fd })
-        ok = res.ok
-      } catch {}
-      if (!ok) {
-        const r2 = await api('/api/incidents', { method: 'POST', body: fd })
-        ok = r2.ok
-      }
-      if (ok) {
+      const r = await api('/incidents', { method: 'POST', body: fd })
+      if (r.ok) {
         alert('Complaint submitted')
         router.replace('/tourist/dashboard')
       } else {
@@ -63,7 +55,7 @@ export default function Complaints() {
     }
   }
   return (
-    <div className="min-h-screen bg-white text-black px-3 sm:px-4 py-4">
+    <div className="min-h-screen bg-white text-black px-3 sm:px-4 py-4 pb-32">
       <Head><title>Complaint - Zentora</title></Head>
       <div className="max-w-md mx-auto">
         <header className="flex items-center justify-between mb-4">
@@ -99,6 +91,7 @@ export default function Complaints() {
           </button>
         </form>
       </div>
+      <TouristBottomNav />
     </div>
   )
 }

@@ -9,6 +9,7 @@ import { api, API_BASE } from '../../src/lib/api'
 import dynamicCard from 'next/dynamic'
 const TouristIdCard = dynamicCard(() => import('../../src/components/TouristIdCard').then(m => m.TouristIdCard), { ssr: false })
 import { AppHeader } from '../../src/components/AppHeader'
+import { TouristBottomNav } from '../../src/components/TouristBottomNav'
 
 const SOSButton = dynamic(() => import('../../src/components/SOSButton').then(m => m.SOSButton), { ssr: false })
 const MapView = dynamic(() => import('../../src/components/MapView').then(m => m.MapView), { ssr: false })
@@ -31,17 +32,17 @@ export default function TouristDashboard() {
         return
       }
     }
-    api('/api/tourist/me').then(async r => {
+    api('/tourist/me').then(async r => {
       if (r.ok) setProfile(await r.json())
     }).catch(() => {})
-    api('/api/tourist/itinerary').then(async r => {
+    api('/tourist/itinerary').then(async r => {
       if (r.ok) {
         const d = await r.json()
         setItins(d.items || [])
       }
     }).catch(() => {})
     // Load public itinerary plans for map routes
-    fetch('/api/proxy/itinerary-plans').then(async r => {
+    api('/itinerary-plans').then(async r => {
       if (r.ok) {
         const d = await r.json()
         setPlans(d.items || [])
@@ -79,7 +80,7 @@ export default function TouristDashboard() {
       const send = () => {
         navigator.geolocation.getCurrentPosition(pos => {
           const { latitude, longitude } = pos.coords
-          fetch('/api/proxy/locations/update', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(localStorage.getItem('token')?{ 'Authorization': `Bearer ${localStorage.getItem('token')}` }: {}) }, body: JSON.stringify({ lat: latitude, lng: longitude }) })
+          api('/locations/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat: latitude, lng: longitude }) })
         })
       }
       send()
@@ -148,11 +149,6 @@ export default function TouristDashboard() {
           )}
         </div>
 
-  <div className="p-4 border rounded-2xl border-neutral-200 shadow-sm glass bg-white">
-          <div className="text-sm mb-1">{t('tourist.safetyScore')}</div>
-          <div className="text-3xl font-bold">{profile?.safety_score ?? 0}</div>
-        </div>
-
         {/* SOS: Use a single rectangular bar for all viewports */}
         <div className="mt-2">
           <SOSButton variant="bar" />
@@ -207,15 +203,7 @@ export default function TouristDashboard() {
         </section>
       )}
 
-  <nav className="fixed bottom-0 left-0 right-0 border-t border-neutral-200 bg-white [padding-bottom:env(safe-area-inset-bottom)]">
-        <div className="max-w-xl mx-auto grid grid-cols-5 text-center py-2 text-sm text-neutral-800">
-          <Link href="/tourist/dashboard" className="flex items-center justify-center"><Home size={22} /></Link>
-          <Link href="/tourist/map" className="flex items-center justify-center"><Map size={22} /></Link>
-          <Link href="/tourist/complaints" className="flex items-center justify-center"><Calendar size={22} /></Link>
-          <Link href="#" className="flex items-center justify-center"><Bell size={22} /></Link>
-          <Link href="/tourist/profile" className="flex items-center justify-center"><User size={22} /></Link>
-        </div>
-      </nav>
+      <TouristBottomNav />
     </div>
   )
 }
