@@ -84,7 +84,7 @@ export default function Register() {
 
           <div className="mt-4 rounded-2xl border border-[#17151b1f] bg-[#f4f8ff] p-3 text-sm text-[#2e3f66]">
             <p className="inline-flex items-center gap-2 font-medium"><ClipboardCheck size={15} /> After registration</p>
-            <p className="mt-1">Log in and continue with Aadhaar verification to unlock Tourist ID workflows.</p>
+            <p className="mt-1">Log in and continue with personal ID verification to unlock Tourist ID workflows.</p>
           </div>
         </section>
       </div>

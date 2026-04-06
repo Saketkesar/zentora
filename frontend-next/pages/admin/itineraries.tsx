@@ -26,6 +26,9 @@ export default function AdminItineraries() {
   const cpLayerRef = useRef<any>(null)
   const [cpMode, setCpMode] = useState(false)
 
+  const canCreate = title.trim().length > 0 && Boolean(when)
+  const canSavePlan = planTitle.trim().length > 0 && pathPts.length >= 2
+
   const refresh = async () => {
     const r = await api('/api/admin/itineraries')
     if (r.ok) setItems((await r.json()).items || [])
@@ -122,73 +125,113 @@ export default function AdminItineraries() {
     if (lng) body.lng = parseFloat(lng)
     if (userId) body.user_id = parseInt(userId)
     const r = await api('/api/admin/itineraries', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    if (r.ok) { await refresh(); setTitle(''); setWhen(''); setLat(''); setLng(''); setUserId(''); alert('Itinerary added') } else alert('Failed')
+    if (r.ok) { await refresh(); setTitle('City Tour'); setWhen(''); setLat(''); setLng(''); setUserId(''); alert('Itinerary added') } else alert('Failed')
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-black dark:text-white px-4 py-4">
+    <div className="min-h-screen text-black px-4 py-6">
       <Head><title>Admin Itineraries - Zentora</title></Head>
-      <header className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold flex items-center gap-2"><Shield size={20} /> Itineraries</h1>
+      <header className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div>
+          <h1 className="text-2xl font-semibold flex items-center gap-2 font-display"><Shield size={20} /> Itineraries</h1>
+          <p className="text-sm text-neutral-600">Create trips and route plans that show up in the tourist panel.</p>
+        </div>
         <div className="flex items-center gap-2">
-          <Link className="px-3 py-1.5 rounded border border-neutral-300 dark:border-neutral-700 flex items-center gap-1" href="/"><HomeIcon size={16} /> Home</Link>
-          <Link className="px-3 py-1.5 rounded border border-neutral-300 dark:border-neutral-700" href="/admin/dashboard">Back</Link>
+          <Link className="px-3 py-1.5 rounded-full border border-neutral-300 bg-white/80 flex items-center gap-1" href="/"><HomeIcon size={16} /> Home</Link>
+          <Link className="px-3 py-1.5 rounded-full border border-neutral-300 bg-white/80" href="/admin/dashboard">Back</Link>
         </div>
       </header>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="p-4 border rounded-xl border-neutral-200 dark:border-neutral-800">
-          <div className="font-semibold mb-2 flex items-center gap-2"><CalendarPlus size={18} /> New Itinerary</div>
-          <div className="grid gap-2 text-sm">
-            <label className="grid gap-1">Title<input className="border rounded px-2 py-1 bg-transparent" value={title} onChange={e=>setTitle(e.target.value)} /></label>
-            <label className="grid gap-1">When<input className="border rounded px-2 py-1 bg-transparent" type="datetime-local" value={when} onChange={e=>setWhen(e.target.value)} /></label>
-            <div className="text-xs text-neutral-600">Pick location on the map (no manual lat/lng)</div>
-            <div ref={mapRef} className="w-full h-56 rounded border border-neutral-200" />
-            <div className="text-xs text-neutral-600">{lat && lng ? (<span><MapPin size={12} className="inline -mt-0.5" /> {Number(lat).toFixed(5)}, {Number(lng).toFixed(5)}</span>) : 'No location chosen'}</div>
-            <label className="grid gap-1">User ID (optional)<input className="border rounded px-2 py-1 bg-transparent" value={userId} onChange={e=>setUserId(e.target.value)} /></label>
-            <button onClick={create} className="self-start mt-2 px-3 py-1.5 rounded bg-black text-white dark:bg-white dark:text-black">Create</button>
+      <div className="grid lg:grid-cols-3 gap-4">
+        <section className="lg:col-span-2 p-4 border rounded-2xl border-neutral-200 bg-white/80 shadow-[0_10px_30px_-25px_rgba(15,23,42,0.35)] animate-slide-up">
+          <div className="flex items-center justify-between">
+            <div className="font-semibold flex items-center gap-2"><CalendarPlus size={18} /> New Itinerary</div>
+            <span className="text-xs px-2 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-700">Tourist-facing</span>
           </div>
-        </div>
-        <div className="p-4 border rounded-xl border-neutral-200 dark:border-neutral-800">
+          <div className="grid md:grid-cols-[1.05fr_1fr] gap-4 mt-3 text-sm">
+            <div className="grid gap-3">
+              <label className="grid gap-1">
+                Title
+                <input className="border rounded-lg px-3 py-2 bg-white/80" value={title} onChange={e=>setTitle(e.target.value)} placeholder="City Tour" />
+              </label>
+              <label className="grid gap-1">
+                When
+                <input className="border rounded-lg px-3 py-2 bg-white/80" type="datetime-local" value={when} onChange={e=>setWhen(e.target.value)} />
+              </label>
+              <label className="grid gap-1">
+                Tourist User ID (optional)
+                <input className="border rounded-lg px-3 py-2 bg-white/80" value={userId} onChange={e=>setUserId(e.target.value)} placeholder="Attach to a specific tourist" />
+              </label>
+              <div className="text-xs text-neutral-600">Location pins show on the tourist panel map and itinerary list.</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button disabled={!canCreate} onClick={create} className={`px-4 py-2 rounded-full text-white ${canCreate ? 'bg-black' : 'bg-neutral-300 cursor-not-allowed'}`}>Create itinerary</button>
+                <button onClick={()=>{ setTitle('City Tour'); setWhen(''); setLat(''); setLng(''); setUserId('') }} className="px-3 py-2 rounded-full border border-neutral-300 bg-white/80">Reset</button>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <div className="text-xs text-neutral-600">Tap the map to pin a location.</div>
+              <div ref={mapRef} className="w-full h-64 rounded-xl border border-neutral-200 bg-white/70" />
+              <div className="text-xs text-neutral-600 flex items-center gap-2">
+                <MapPin size={12} />
+                {lat && lng ? `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}` : 'No location chosen'}
+              </div>
+            </div>
+          </div>
+        </section>
+        <section className="p-4 border rounded-2xl border-neutral-200 bg-white/80 shadow-[0_10px_30px_-25px_rgba(15,23,42,0.35)] animate-slide-up delay-100">
           <div className="font-semibold mb-2">Upcoming</div>
           {loading ? <div>Loading…</div> : (
             <ul className="text-sm space-y-2">
               {items.map(it => (
-                <li key={it.id} className="flex items-center justify-between">
-                  <span className="flex items-center gap-2"><MapPin size={14} /> {it.title} — {new Date(it.when).toLocaleString()} {it.lat && it.lng ? `· ${Number(it.lat).toFixed(3)},${Number(it.lng).toFixed(3)}` : ''} {it.user_id ? `· user ${it.user_id}` : ''}</span>
+                <li key={it.id} className="p-3 rounded-xl border border-neutral-200 bg-white/80">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium flex items-center gap-2"><MapPin size={14} /> {it.title}</div>
+                      <div className="text-xs text-neutral-500">{new Date(it.when).toLocaleString()}</div>
+                      {(it.lat && it.lng) && (
+                        <div className="text-xs text-neutral-500 mt-1">{Number(it.lat).toFixed(4)}, {Number(it.lng).toFixed(4)}</div>
+                      )}
+                    </div>
+                    {it.user_id && <span className="text-xs px-2 py-0.5 rounded-full border border-neutral-200 bg-neutral-50">user {it.user_id}</span>}
+                  </div>
                 </li>
               ))}
               {items.length === 0 && <li className="text-neutral-500">No itineraries</li>}
             </ul>
           )}
-        </div>
+        </section>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4 mt-4">
-        <div className="p-4 border rounded-xl border-neutral-200 dark:border-neutral-800">
+      <div className="grid lg:grid-cols-3 gap-4 mt-4">
+        <section className="lg:col-span-2 p-4 border rounded-2xl border-neutral-200 bg-white/80 shadow-[0_10px_30px_-25px_rgba(15,23,42,0.35)] animate-slide-up">
           <div className="font-semibold mb-2 flex items-center gap-2"><RouteIcon size={18} /> Route Plan (Map)</div>
-          <div className="grid gap-2 text-sm">
-            <label className="grid gap-1">Plan title<input className="border rounded px-2 py-1 bg-transparent" value={planTitle} onChange={e=>setPlanTitle(e.target.value)} /></label>
-            <div className="flex items-center gap-2">
-              <button onClick={()=>setCpMode(true)} className="px-2 py-1 rounded border border-neutral-300">Add checkpoint</button>
-              <button onClick={()=>{
+          <div className="grid gap-3 text-sm">
+            <label className="grid gap-1">
+              Plan title
+              <input className="border rounded-lg px-3 py-2 bg-white/80" value={planTitle} onChange={e=>setPlanTitle(e.target.value)} placeholder="Route Plan" />
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={()=>setCpMode(true)} className="px-3 py-1.5 rounded-full border border-neutral-300 bg-white/80">Add checkpoint</button>
+              <button onClick={() => {
                 setPathPts([]); setCheckpoints([])
                 if (planPath.current) planPath.current.setLatLngs([])
                 if (cpLayerRef.current) cpLayerRef.current.clearLayers()
-              }} className="px-2 py-1 rounded border border-neutral-300 inline-flex items-center gap-1"><Eraser size={14}/>Clear</button>
-              <span className={`text-xs ${cpMode? 'text-emerald-700':'text-neutral-500'}`}>{cpMode? 'Click on the map to add checkpoint…':'Click on map to add route points'}</span>
+              }} className="px-3 py-1.5 rounded-full border border-neutral-300 bg-white/80 inline-flex items-center gap-1"><Eraser size={14} /> Clear</button>
+              <span className={`text-xs px-2 py-0.5 rounded-full border ${cpMode ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-neutral-200 bg-neutral-50 text-neutral-500'}`}>
+                {cpMode ? 'Tap map to add a checkpoint' : 'Tap map to draw the route'}
+              </span>
             </div>
-            <div ref={planMapRef} className="w-full h-72 rounded border border-neutral-200" />
+            <div ref={planMapRef} className="w-full h-80 rounded-xl border border-neutral-200 bg-white/70" />
             <div className="text-xs text-neutral-600">{pathPts.length} route points · {checkpoints.length} checkpoints</div>
-            <button onClick={async()=>{
+            <button disabled={!canSavePlan} onClick={async()=>{
               if (!planTitle.trim()) { alert('Enter a title'); return }
               if (pathPts.length < 2) { alert('Add at least 2 route points'); return }
               const body = { title: planTitle, data: { path: pathPts, checkpoints } }
               const r = await api('/api/admin/itinerary-plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-              if (r.ok) { alert('Plan saved'); setPlanTitle(''); setPathPts([]); setCheckpoints([]); if (planPath.current) planPath.current.setLatLngs([]); if (cpLayerRef.current) cpLayerRef.current.clearLayers() } else alert('Failed to save plan')
-            }} className="self-start px-3 py-1.5 rounded bg-black text-white">Save Plan</button>
+              if (r.ok) { alert('Plan saved'); setPlanTitle('Route Plan'); setPathPts([]); setCheckpoints([]); if (planPath.current) planPath.current.setLatLngs([]); if (cpLayerRef.current) cpLayerRef.current.clearLayers() } else alert('Failed to save plan')
+            }} className={`self-start px-4 py-2 rounded-full text-white ${canSavePlan ? 'bg-black' : 'bg-neutral-300 cursor-not-allowed'}`}>Save Plan</button>
           </div>
-        </div>
+        </section>
         <AdminPlansList />
       </div>
     </div>
@@ -210,16 +253,19 @@ function AdminPlansList() {
     if (r.ok) load()
   }
   return (
-    <div className="p-4 border rounded-xl border-neutral-200 dark:border-neutral-800">
+    <div className="p-4 border rounded-2xl border-neutral-200 bg-white/80 shadow-[0_10px_30px_-25px_rgba(15,23,42,0.35)] animate-slide-up delay-100">
       <div className="font-semibold mb-2">Saved Plans</div>
       {loading ? <div>Loading…</div> : (
         <ul className="text-sm space-y-2 max-h-80 overflow-auto">
           {items.map((p: any) => (
-            <li key={p.id} className="flex items-center justify-between">
-              <span>{p.title}</span>
+            <li key={p.id} className="p-3 rounded-xl border border-neutral-200 bg-white/80 flex items-center justify-between">
+              <div>
+                <div className="font-medium">{p.title}</div>
+                <div className="text-xs text-neutral-500">Points: {p.data?.path?.length || 0} · Checkpoints: {p.data?.checkpoints?.length || 0}</div>
+              </div>
               <span className="flex items-center gap-2">
-                <Link className="underline text-xs" href={`/tourist/plan/${p.id}`}>Preview</Link>
-                <button onClick={()=>del(p.id)} className="px-2 py-0.5 rounded border border-rose-300 text-rose-700 text-xs">Delete</button>
+                <Link className="px-2 py-1 rounded-full border border-neutral-300 text-xs" href={`/tourist/plan/${p.id}`}>Tourist view</Link>
+                <button onClick={()=>del(p.id)} className="px-2 py-1 rounded-full border border-rose-300 text-rose-700 text-xs">Delete</button>
               </span>
             </li>
           ))}

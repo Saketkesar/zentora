@@ -20,7 +20,7 @@ export default function TouristProfile() {
           <Avatar src={me?.profile_photo_url ? `/api/proxy${me.profile_photo_url}` : undefined} size={56} className="w-14 h-14" alt="profile" />
           <div>
             <div className="font-medium">{me?.name || '—'}</div>
-            <div className="text-xs text-neutral-500">Aadhaar: <span className={`px-2 py-0.5 rounded text-xs ${me?.kyc_status==='approved'?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300':(me?.kyc_status==='pending'?'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300':'bg-neutral-200 dark:bg-neutral-800')}`}>{me?.kyc_status || '—'}</span></div>
+            <div className="text-xs text-neutral-500">ID Verification: <span className={`px-2 py-0.5 rounded text-xs ${me?.kyc_status==='approved'?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300':(me?.kyc_status==='pending'?'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300':'bg-neutral-200 dark:bg-neutral-800')}`}>{me?.kyc_status || '—'}</span></div>
           </div>
         </div>
   <div className="p-4 border rounded-2xl border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60">

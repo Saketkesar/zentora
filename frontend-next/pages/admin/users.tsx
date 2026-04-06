@@ -52,9 +52,9 @@ export default function AdminUsers() {
                   <div className="text-xs text-neutral-500">{u.email}</div>
                 </div>
               </div>
-              <div className="text-sm">
-                    <div>Aadhaar: <span className={`px-2 py-0.5 rounded text-xs ${u.aadhaar_verified?'bg-emerald-100 text-emerald-700':'bg-rose-100 text-rose-700'}`}>{u.aadhaar_verified?'verified':'not verified'}</span></div>
-              </div>
+                <div className="text-sm">
+                  <div>ID Verification: <span className={`px-2 py-0.5 rounded text-xs ${u.aadhaar_verified?'bg-emerald-100 text-emerald-700':'bg-rose-100 text-rose-700'}`}>{u.aadhaar_verified?'verified':'not verified'}</span></div>
+                </div>
               <div className="text-sm flex items-center justify-between gap-3">
                 {u.latest_tourist_id ? (
                   <div className="flex-1">

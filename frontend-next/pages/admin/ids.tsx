@@ -179,7 +179,7 @@ export default function AdminIdsPage() {
               <h2 className="font-semibold flex items-center gap-2"><Camera className="text-neutral-700" size={16} /> Generate ID</h2>
               <button disabled={!selected || loading} onClick={generateId} className="px-3 py-2 rounded bg-black text-white disabled:opacity-50 inline-flex items-center gap-1"><CheckCircle2 className="text-neutral-700" size={16} /> Generate for Selected</button>
             </div>
-            <p className="text-sm text-neutral-500 mb-3">Only Aadhaar-verified users appear here. Select one to generate a new Tourist ID. The latest ID is what the tourist sees.</p>
+            <p className="text-sm text-neutral-500 mb-3">Only ID-verified users appear here. Select one to generate a new Tourist ID. The latest ID is what the tourist sees.</p>
             {selected && (
               <div className="flex items-center gap-3 mb-3 p-2 rounded border border-neutral-200">
                 <Avatar src={selected.profile_photo_url || undefined} alt={selected.name} size={40} className="w-10 h-10" />

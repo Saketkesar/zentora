@@ -113,7 +113,7 @@ export default function TouristDashboard() {
     <AppHeader title={t('tourist.header')} role="tourist" />
       {flash === 'kyc_submitted' && (
         <div className="mb-3 px-4 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800">
-          KYC submitted — please visit the verification counter with your Aadhaar card.
+          Verification submitted — please visit the counter with your personal ID.
         </div>
       )}
       
@@ -142,9 +142,9 @@ export default function TouristDashboard() {
               </div>
             </div>
           ) : profile?.kyc_status === 'pending' ? (
-            <div className="mt-2 text-sm text-amber-700">KYC submitted — awaiting verification at the counter.</div>
+            <div className="mt-2 text-sm text-amber-700">Verification submitted — awaiting review at the counter.</div>
           ) : (
-            <Link className="px-3 py-1.5 rounded bg-blue-600 text-white dark:bg-blue-500 inline-flex items-center gap-2 text-sm" href="/tourist/kyc">Start KYC</Link>
+            <Link className="px-3 py-1.5 rounded bg-blue-600 text-white dark:bg-blue-500 inline-flex items-center gap-2 text-sm" href="/tourist/kyc">Start verification</Link>
           )}
         </div>
 

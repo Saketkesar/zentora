@@ -21,9 +21,6 @@ export default function AdminDashboard() {
   <div className="min-h-screen bg-[#f6f7f9] text-[#161418] px-4 py-4">
       <Head><title>Admin Dashboard - Zentora</title></Head>
       <AppHeader title="Admin Dashboard" role="admin" />
-      <div className="mb-3 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-600">
-        Minimal Mode: reduced visual noise for faster operations.
-      </div>
       <StatsCards />
       <div className="grid md:grid-cols-3 gap-4">
   <div className="p-0 border rounded-xl border-neutral-200 overflow-hidden bg-white">
