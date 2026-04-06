@@ -42,14 +42,26 @@ get_lan_ip() {
 print_access_urls() {
     local lan_ip
     lan_ip="$(get_lan_ip)"
-    local wifi_url="http://zentora.${lan_ip//./-}.nip.io"
+    local http_url="http://${lan_ip}"
+    local https_url="https://${lan_ip}:8443"
+    local nip_io_url="http://10-25-115-100.nip.io"
 
-    print_header "SERVICES STARTED"
-    echo -e "${GREEN}Local Frontend:${NC} ${YELLOW}http://127.0.0.1:3000${NC}"
-    echo -e "${GREEN}Local Backend:${NC} ${YELLOW}http://127.0.0.1:8001${NC}"
-    echo -e "${GREEN}Local API Docs:${NC} ${YELLOW}http://127.0.0.1:8001/docs${NC}"
-    echo -e "${GREEN}Wi-Fi Share URL:${NC} ${YELLOW}${wifi_url}${NC}"
-    echo -e "${GREEN}Wi-Fi API Docs:${NC} ${YELLOW}${wifi_url}/api/docs${NC}"
+    print_header "✅ ZENTORA SERVICES STARTED"
+    echo ""
+    echo -e "${BLUE}📱 MOBILE ACCESS (Same WiFi Network):${NC}"
+    echo -e "  ${GREEN}HTTPS (Camera Access):${NC} ${YELLOW}${https_url}${NC}"
+    echo -e "  ${GREEN}HTTP (Fallback):${NC} ${YELLOW}${http_url}${NC}"
+    echo ""
+    echo -e "${BLUE}💻 LOCAL ACCESS:${NC}"
+    echo -e "  ${GREEN}Frontend:${NC} ${YELLOW}http://127.0.0.1:3000${NC}"
+    echo -e "  ${GREEN}Backend API:${NC} ${YELLOW}http://127.0.0.1:8001${NC}"
+    echo -e "  ${GREEN}API Docs:${NC} ${YELLOW}http://127.0.0.1:8001/docs${NC}"
+    echo ""
+    echo -e "${BLUE}🔧 CONFIGURATION:${NC}"
+    echo -e "  ${GREEN}Your Local IP:${NC} ${YELLOW}${lan_ip}${NC}"
+    echo -e "  ${GREEN}IoT ESP8266 Server:${NC} ${YELLOW}${lan_ip}:8001${NC}"
+    echo ""
+    print_header "✨ READY TO USE"
 }
 
 print_header() {
@@ -308,6 +320,21 @@ setup_env() {
     print_success "Ensured data directories exist"
 }
 
+update_esp8266_config() {
+    local lan_ip
+    lan_ip="$(get_lan_ip)"
+    
+    # Find all config.h files in iot directory
+    find "$PROJECT_DIR/iot" -name "config.h" -o -name "*.ino" | while read -r file; do
+        if grep -q "SERVER_IP" "$file" 2>/dev/null; then
+            # Update the SERVER_IP to current LAN IP
+            sed -i.bak "s/const char\* SERVER_IP = .*/const char* SERVER_IP = \"$lan_ip\";/" "$file" 2>/dev/null || \
+            sed -i '' "s/const char\* SERVER_IP = .*/const char* SERVER_IP = \"$lan_ip\";/" "$file"
+            print_success "Updated IP in $file to $lan_ip"
+        fi
+    done
+}
+
 setup_all() {
     print_header "ZENTORA DOCKER SETUP"
     ensure_repo
@@ -327,10 +354,12 @@ start_all() {
     ensure_repo
     check_dependencies
     setup_env
+    update_esp8266_config
 
     # Skip nginx by default to avoid host-specific TLS/cert path issues.
     compose up -d --build postgres ganache backend frontend caddy
 
+    sleep 5
     print_access_urls
 }
 

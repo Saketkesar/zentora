@@ -178,13 +178,24 @@ exit /b 0
 
 :print_access_urls
 call :detect_lan_ip
-set WIFI_URL=http://zentora.%LAN_IP:.=-%.nip.io
-call :print_header "SERVICES STARTED"
-echo Local Frontend: http://127.0.0.1:3000
-echo Local Backend:  http://127.0.0.1:8001
-echo Local API Docs: http://127.0.0.1:8001/docs
-echo Wi-Fi Share URL: !WIFI_URL!
-echo Wi-Fi API Docs: !WIFI_URL!/api/docs
+set HTTP_URL=http://%LAN_IP%
+set HTTPS_URL=https://%LAN_IP%:8443
+call :print_header "ZENTORA SERVICES STARTED"
+echo.
+echo Mobile Access (Same WiFi Network):
+echo   HTTPS (Camera Access): %HTTPS_URL%
+echo   HTTP (Fallback):       %HTTP_URL%
+echo.
+echo Local Access:
+echo   Frontend: http://127.0.0.1:3000
+echo   Backend API: http://127.0.0.1:8001
+echo   API Docs: http://127.0.0.1:8001/docs
+echo.
+echo Configuration:
+echo   Your Local IP: %LAN_IP%
+echo   IoT ESP8266 Server: %LAN_IP%:8001
+echo.
+echo Ready to Use!
 exit /b 0
 
 :setup_all

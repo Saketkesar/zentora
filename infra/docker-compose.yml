@@ -6,8 +6,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_BASE=http://backend:8000
-      - NEXT_PUBLIC_SITE_ORIGIN=http://localhost
+      - NEXT_PUBLIC_API_BASE=http://10.25.115.100/api
+      - NEXT_PUBLIC_SITE_ORIGIN=http://10.25.115.100
     depends_on:
       - backend
     networks:
@@ -31,8 +31,7 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"
-      - "443:443"
+      - "8443:443"
     volumes:
       - type: bind
         source: ./nginx/default.conf
@@ -41,10 +40,6 @@ services:
       - type: bind
         source: ./certs
         target: /etc/nginx/certs
-        read_only: true
-      - type: bind
-        source: /home/saket/.local/share/mkcert
-        target: /mkcert
         read_only: true
     depends_on:
       - frontend

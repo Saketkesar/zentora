@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Form, WebSocket, WebSocketDisconnect, Header
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Form, WebSocket, WebSocketDisconnect, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -10,6 +10,7 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.engine import make_url
 import time
+import base64
 from passlib.hash import bcrypt
 from passlib.context import CryptContext
 import jwt
@@ -64,6 +65,26 @@ app.mount("/static", StaticFiles(directory="data"), name="static")
 # Simple in-memory subscriber set for alert broadcasts
 alert_clients: set[WebSocket] = set()
 rfid_clients: set[WebSocket] = set()
+
+# RFID Module Mode State (for ESP to check)
+rfid_mode_state = {
+    "write_enabled": False,
+    "read_enabled": False,
+    "user_id": None,
+    "last_updated": datetime.utcnow()
+}
+
+# RFID Last Read Result (for frontend to poll)
+rfid_last_read_result = {
+    "result": None,  # Will store the verify result
+    "timestamp": None
+}
+
+# RFID Last Write Result (for frontend to poll)
+rfid_last_write_result = {
+    "uuid": None,  # UUID that was written
+    "timestamp": None
+}
 
 class RegisterBody(BaseModel):
     email: str
@@ -214,10 +235,12 @@ def on_startup():
         user_cols = set(c.get('name') for c in insp.get_columns('users'))
         rfid_bind_cols = set(c.get('name') for c in insp.get_columns('rfid_bindings')) if insp.has_table('rfid_bindings') else set()
         rfid_scan_cols = set(c.get('name') for c in insp.get_columns('rfid_scans')) if insp.has_table('rfid_scans') else set()
+        tourist_id_cols = set(c.get('name') for c in insp.get_columns('tourist_ids')) if insp.has_table('tourist_ids') else set()
     except Exception:
         user_cols = set()
         rfid_bind_cols = set()
         rfid_scan_cols = set()
+        tourist_id_cols = set()
     try:
         with engine.begin() as conn:
             if 'profile_photo_path' not in user_cols:
@@ -229,6 +252,11 @@ def on_startup():
             if 'phone' not in user_cols:
                 try:
                     conn.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(30)"))
+                except Exception:
+                    pass
+            if 'profile_photo_path' not in tourist_id_cols:
+                try:
+                    conn.execute(text("ALTER TABLE tourist_ids ADD COLUMN profile_photo_path VARCHAR(255)"))
                 except Exception:
                     pass
             # Create RFID tables if missing (SQLite compatible minimal DDL)
@@ -412,7 +440,11 @@ async def me(db: Session = Depends(get_db), user: Optional[UserModel] = Depends(
         valid_to = tid.valid_to.isoformat()+"Z" if tid.valid_to else None
     profile_photo_url = None
     name = user.name if user else None
-    if user and user.profile_photo_path:
+    # Prefer profile photo from tourist ID if available, otherwise use user profile photo
+    if tid and tid.profile_photo_path:
+        p = os.path.basename(tid.profile_photo_path)
+        profile_photo_url = f"/static/uploads/{p}"
+    elif user and user.profile_photo_path:
         p = os.path.basename(user.profile_photo_path)
         profile_photo_url = f"/static/uploads/{p}"
     return {"tourist_id": getattr(tid, 'uuid', None), "qr_url": qr_url, "valid_from": valid_from, "valid_to": valid_to, "safety_score": 0, "kyc_status": kyc_status, "name": name, "profile_photo_url": profile_photo_url}
@@ -699,6 +731,7 @@ async def upload_profile_photo(user_id: int, photo: UploadFile = File(...), db: 
 class TouristIdBody(BaseModel):
     valid_from: Optional[datetime] = None
     valid_to: Optional[datetime] = None
+    profile_photo: Optional[str] = None  # base64 encoded image
 
 @app.post("/api/admin/users/{user_id}/tourist-id")
 async def create_tourist_id(user_id: int, body: TouristIdBody, db: Session = Depends(get_db), _: UserModel = Depends(require_admin)):
@@ -712,12 +745,26 @@ async def create_tourist_id(user_id: int, body: TouristIdBody, db: Session = Dep
         with open(qr_file, 'wb') as f:
             # minimal placeholder if qrcode lib not installed
             f.write(b'')
+    
+    # Save profile photo if provided
+    profile_photo_path = None
+    if body.profile_photo:
+        try:
+            # Decode base64 image
+            img_data = base64.b64decode(body.profile_photo)
+            profile_photo_path = os.path.join("data/uploads", f"profile_{uid}.jpg")
+            os.makedirs("data/uploads", exist_ok=True)
+            with open(profile_photo_path, 'wb') as f:
+                f.write(img_data)
+        except Exception as e:
+            print(f"Failed to save profile photo: {e}")
+    
     vf = body.valid_from or datetime.utcnow()
     vt = body.valid_to or (vf + timedelta(days=30))
-    tid = TouristIDModel(user_id=user_id, uuid=uid, qr_path=qr_file, valid_from=vf, valid_to=vt)
+    tid = TouristIDModel(user_id=user_id, uuid=uid, qr_path=qr_file, profile_photo_path=profile_photo_path, valid_from=vf, valid_to=vt)
     db.add(tid)
     db.commit()
-    return {"uuid": uid, "qr_path": qr_file, "valid_from": vf.isoformat()+"Z", "valid_to": vt.isoformat()+"Z"}
+    return {"uuid": uid, "qr_path": qr_file, "profile_photo_path": profile_photo_path, "valid_from": vf.isoformat()+"Z", "valid_to": vt.isoformat()+"Z"}
 
 @app.delete("/api/admin/users/{user_id}/tourist-id")
 async def delete_tourist_id(user_id: int, db: Session = Depends(get_db), _: UserModel = Depends(require_admin)):
@@ -1005,6 +1052,63 @@ async def public_tourist(uuid: str, db: Session = Depends(get_db)):
     brief.pop('user_id', None)
     return brief
 
+# Police/Admin: get full tourist details by UUID (for QR scanning)
+@app.get("/api/police/tourist")
+async def police_tourist_details(uuid: str = Query(None), db: Session = Depends(get_db), _: UserModel = Depends(require_police)):
+    if not uuid or not uuid.strip():
+        raise HTTPException(status_code=400, detail="missing_uuid")
+    uid = uuid.strip().lower()
+    if uid.startswith('0x'):
+        uid = uid[2:]
+    try:
+        tid = db.query(TouristIDModel).filter(TouristIDModel.uuid == uid).order_by(TouristIDModel.created_at.desc()).first()
+        if not tid:
+            raise HTTPException(status_code=404, detail=f"tourist_id_not_found for uuid {uid}")
+        u = db.query(UserModel).filter(UserModel.id == tid.user_id).first()
+        if not u:
+            raise HTTPException(status_code=404, detail="user_not_found")
+        # Get KYC documents
+        kyc_docs = db.query(AadhaarModel).filter(AadhaarModel.user_id == u.id).all()
+        kyc_documents = [
+            {
+                "document_type": "Aadhaar",
+                "front_url": f"/static/uploads/{os.path.basename(doc.front_path)}" if doc.front_path else None,
+                "back_url": f"/static/uploads/{os.path.basename(doc.back_path)}" if doc.back_path else None,
+                "status": doc.status
+            } for doc in kyc_docs
+        ]
+        return {
+            "name": u.name,
+            "email": u.email,
+            "phone": u.phone,
+            "tourist_id": getattr(tid, 'uuid', None),
+            "kyc_status": u.aadhaar_verified and 'approved' or 'pending',
+            "profile_photo_url": f"/static/uploads/{os.path.basename(u.profile_photo_path)}" if u.profile_photo_path else None,
+            "kyc_documents": kyc_documents,
+            "valid_from": tid.valid_from.isoformat()+"Z" if tid.valid_from else None,
+            "valid_to": tid.valid_to.isoformat()+"Z" if tid.valid_to else None,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"error: {str(e)}")
+
+# Debug endpoint: check if UUID exists (no auth required)
+@app.get("/api/debug/tourist-exists")
+async def debug_tourist_exists(uuid: str = Query(None), db: Session = Depends(get_db)):
+    if not uuid or not uuid.strip():
+        return {"exists": False, "reason": "no_uuid_provided"}
+    uid = uuid.strip().lower()
+    if uid.startswith('0x'):
+        uid = uid[2:]
+    tid = db.query(TouristIDModel).filter(TouristIDModel.uuid == uid).first()
+    if tid:
+        u = db.query(UserModel).filter(UserModel.id == tid.user_id).first()
+        return {"exists": True, "user_name": u.name if u else "unknown", "user_id": tid.user_id}
+    # Check if any tourist IDs exist at all
+    count = db.query(TouristIDModel).count()
+    return {"exists": False, "reason": f"uuid_not_found (total_tourist_ids: {count})", "searched_uuid": uid}
+
 # Admin: aggregate stats for dashboard
 @app.get("/api/admin/stats")
 async def admin_stats(db: Session = Depends(get_db), _: UserModel = Depends(require_admin)):
@@ -1086,6 +1190,131 @@ class RFIDBindBody(BaseModel):
     tag_id: str
     blockchain_id: Optional[str] = None
 
+class RFIDVerifyBody(BaseModel):
+    tag_id: Optional[str] = None
+    tourist_uuid: Optional[str] = None
+    blockchain_id: Optional[str] = None
+
+# ========== ESP32/ESP8266 RFID READ/WRITE ENDPOINTS ==========
+
+@app.get("/api/rfid/write/get-uuid")
+async def rfid_get_uuid_to_write(user_id: int = None, db: Session = Depends(get_db)):
+    """
+    ESP32 calls this to get the UUID to write on the RFID card
+    Returns the latest Tourist ID UUID for the user
+    """
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id_required")
+    
+    u = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="user_not_found")
+    
+    # Get latest Tourist ID
+    tid = db.query(TouristIDModel).filter(TouristIDModel.user_id == user_id).order_by(TouristIDModel.created_at.desc()).first()
+    if not tid:
+        raise HTTPException(status_code=404, detail="no_tourist_id")
+    
+    return {
+        "ok": True,
+        "uuid": tid.uuid,
+        "user_name": u.name,
+        "user_email": u.email
+    }
+
+@app.post("/api/rfid/read/verify")
+async def rfid_read_verify(body: RFIDVerifyBody, db: Session = Depends(get_db)):
+    """
+    ESP32 calls this after reading RFID card to verify the data
+    Returns full tourist info if valid
+    Used for READ popup to show user details
+    """
+    tag: Optional[str] = (body.tag_id or "").strip().upper() if body.tag_id else None
+    tourist_uuid_raw = (body.tourist_uuid or "").strip() if body.tourist_uuid else None
+    blockchain_id = (body.blockchain_id or "").strip() if getattr(body, 'blockchain_id', None) else None
+
+    if not tag and not tourist_uuid_raw and not blockchain_id:
+        raise HTTPException(status_code=400, detail="missing_data")
+
+    tourist_uuid: Optional[str] = None
+    if tourist_uuid_raw:
+        tourist_uuid = tourist_uuid_raw[2:] if tourist_uuid_raw.lower().startswith("0x") else tourist_uuid_raw
+        tourist_uuid = tourist_uuid.lower()
+
+    user_id: Optional[int] = None
+    binding = None
+
+    # Find by UUID first
+    if tourist_uuid:
+        tid = db.query(TouristIDModel).filter(TouristIDModel.uuid == tourist_uuid).first()
+        if tid:
+            user_id = tid.user_id
+            binding = db.query(RFIDBindingModel).filter(
+                RFIDBindingModel.user_id == user_id,
+                RFIDBindingModel.active == True
+            ).order_by(RFIDBindingModel.created_at.desc()).first()
+
+    # Fallback to tag
+    if not user_id and tag:
+        b = db.query(RFIDBindingModel).filter(RFIDBindingModel.tag_id == tag, RFIDBindingModel.active == True).first()
+        if b:
+            user_id = b.user_id
+            binding = b
+
+    if not user_id:
+        return {"ok": False, "valid": False, "message": "tourist_not_found"}
+
+    # Get full tourist details
+    u = db.query(UserModel).filter(UserModel.id == user_id).first()
+    tid = db.query(TouristIDModel).filter(TouristIDModel.user_id == user_id).order_by(TouristIDModel.created_at.desc()).first()
+    
+    now = datetime.utcnow()
+    valid = False
+    if tid and tid.valid_from and tid.valid_to and tid.valid_from <= now <= tid.valid_to:
+        valid = True
+
+    # Get KYC documents if available
+    kyc_doc = db.query(AadhaarModel).filter(AadhaarModel.user_id == user_id).first()
+    kyc_status = "none"
+    kyc_documents = []
+    if kyc_doc:
+        if kyc_doc.status == "approved":
+            kyc_status = "approved"
+        elif kyc_doc.status == "rejected":
+            kyc_status = "rejected"
+        else:
+            kyc_status = "pending"
+        
+        kyc_documents = []
+        if kyc_doc.front_path:
+            kyc_documents.append({"type": "front", "url": f"/api/proxy{kyc_doc.front_path}"})
+        if kyc_doc.back_path:
+            kyc_documents.append({"type": "back", "url": f"/api/proxy{kyc_doc.back_path}"})
+
+    result = {
+        "ok": True,
+        "valid": valid,
+        "user_id": user_id,
+        "name": u.name if u else "Unknown",
+        "email": u.email if u else "unknown@example.com",
+        "phone": u.phone if u else "N/A",
+        "tourist_uuid": tid.uuid if tid else None,
+        "kyc_status": kyc_status,
+        "kyc_documents": kyc_documents,
+        "valid_from": (tid.valid_from.isoformat() + "Z" if tid and tid.valid_from else None),
+        "valid_to": (tid.valid_to.isoformat() + "Z" if tid and tid.valid_to else None),
+        "profile_photo_url": u.profile_photo_path if u else None
+    }
+    
+    # Store result for frontend to poll
+    global rfid_last_read_result
+    rfid_last_read_result = {
+        "result": result,
+        "timestamp": datetime.utcnow()
+    }
+    
+    return result
+
 @app.post("/api/admin/rfid/bind")
 async def rfid_bind(body: RFIDBindBody, db: Session = Depends(get_db), _: UserModel = Depends(require_admin)):
     tag = (body.tag_id or "").strip().upper()
@@ -1137,11 +1366,16 @@ async def rfid_bind(body: RFIDBindBody, db: Session = Depends(get_db), _: UserMo
     db.commit()
     return {"ok": True, "tourist_id": getattr(tid, 'uuid', None), "tourist_created": created_tid}
 
-class RFIDVerifyBody(BaseModel):
-    tag_id: Optional[str] = None
-    tourist_uuid: Optional[str] = None
-    # Accept alternate payloads written to the tag (e.g., blockchain tx or prefixed UUID)
-    blockchain_id: Optional[str] = None
+@app.get("/api/admin/rfid/bind-check")
+async def rfid_bind_check(user_id: int, tag_id: str, db: Session = Depends(get_db), _: UserModel = Depends(require_admin)):
+    """Frontend calls this while waiting for write - checks if binding exists"""
+    tag = (tag_id or "").strip().upper()
+    b = db.query(RFIDBindingModel).filter(
+        RFIDBindingModel.user_id == user_id,
+        RFIDBindingModel.tag_id == tag,
+        RFIDBindingModel.active == True
+    ).first()
+    return {"exists": b is not None}
 
 def _tourist_brief(db: Session, user_id: int) -> dict[str, Any]:
     u = db.query(UserModel).filter(UserModel.id == user_id).first()
@@ -1299,6 +1533,72 @@ async def delete_rfid_binding(binding_id: int, db: Session = Depends(get_db), _:
     db.delete(b)
     db.commit()
     return {"ok": True}
+
+# ========== RFID Module Mode Control (for Admin UI & ESP) ==========
+
+@app.post("/api/admin/rfid/mode/write-on")
+async def rfid_write_mode_on(user_id: int, db: Session = Depends(get_db), _: UserModel = Depends(require_admin)):
+    """Admin UI calls this when Write button is clicked"""
+    rfid_mode_state["write_enabled"] = True
+    rfid_mode_state["read_enabled"] = False
+    rfid_mode_state["user_id"] = user_id
+    rfid_mode_state["last_updated"] = datetime.utcnow()
+    return {"ok": True, "mode": "write", "user_id": user_id}
+
+@app.post("/api/admin/rfid/mode/read-on")
+async def rfid_read_mode_on(user_id: int, db: Session = Depends(get_db), _: UserModel = Depends(require_admin)):
+    """Admin UI calls this when Read button is clicked"""
+    rfid_mode_state["read_enabled"] = True
+    rfid_mode_state["write_enabled"] = False
+    rfid_mode_state["user_id"] = user_id
+    rfid_mode_state["last_updated"] = datetime.utcnow()
+    return {"ok": True, "mode": "read", "user_id": user_id}
+
+@app.post("/api/admin/rfid/mode/off")
+async def rfid_mode_off(db: Session = Depends(get_db), _: UserModel = Depends(require_admin)):
+    """Admin UI calls this when popup is closed"""
+    global rfid_last_read_result, rfid_last_write_result
+    rfid_mode_state["write_enabled"] = False
+    rfid_mode_state["read_enabled"] = False
+    rfid_mode_state["user_id"] = None
+    rfid_mode_state["last_updated"] = datetime.utcnow()
+    rfid_last_read_result["result"] = None  # Clear old read result
+    rfid_last_write_result["uuid"] = None  # Clear old write result
+    return {"ok": True, "mode": "off"}
+
+@app.get("/api/rfid/module/status")
+async def rfid_module_status():
+    """ESP8266/ESP32 polls this every 5 seconds to check which mode is active"""
+    return {
+        "write_enabled": rfid_mode_state["write_enabled"],
+        "read_enabled": rfid_mode_state["read_enabled"],
+        "user_id": rfid_mode_state["user_id"],
+        "last_updated": rfid_mode_state["last_updated"].isoformat() + "Z"
+    }
+
+@app.get("/api/rfid/last-read")
+async def rfid_last_read():
+    """Frontend polls this to check if ESP detected and verified a card"""
+    if rfid_last_read_result["result"]:
+        return rfid_last_read_result["result"]
+    return {"ok": False}  # Return proper JSON, not null
+
+@app.post("/api/rfid/write/complete")
+async def rfid_write_complete(uuid: str):
+    """ESP calls this AFTER successfully writing UUID to card"""
+    global rfid_last_write_result
+    rfid_last_write_result = {
+        "uuid": uuid.strip() if uuid else None,
+        "timestamp": datetime.utcnow()
+    }
+    return {"ok": True}
+
+@app.get("/api/rfid/last-write")
+async def rfid_last_write():
+    """Frontend polls this to check if ESP wrote a card"""
+    if rfid_last_write_result["uuid"]:
+        return {"uuid": rfid_last_write_result["uuid"]}
+    return {"ok": False}  # Return proper JSON, not null
 
 @app.delete("/api/admin/users/{user_id}")
 async def admin_delete_user(user_id: int, db: Session = Depends(get_db), _: UserModel = Depends(require_admin)):

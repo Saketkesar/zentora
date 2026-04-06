@@ -1,20 +1,25 @@
-# LAN gateway for any host/IP mapping that points to this machine.
-# Example share URL: http://zentora.192-168-1-10.nip.io
+# LAN gateway - HTTP only for now
+# Access: http://10.25.115.100
+
 :80 {
 	encode gzip zstd
 
-	# Keep Next.js API proxy routes on the frontend app.
-	# Without this, /api/proxy/* is sent to backend and returns 404.
+	# WebSocket connections
+	handle /ws/* {
+		reverse_proxy backend:8000
+	}
+
+	# API proxy routes
 	handle /api/proxy/* {
 		reverse_proxy frontend:3000
 	}
 
-	# API routes go directly to backend.
+	# API routes
 	handle_path /api/* {
 		reverse_proxy backend:8000
 	}
 
-	# Everything else goes to Next frontend.
+	# Frontend
 	handle {
 		reverse_proxy frontend:3000
 	}
