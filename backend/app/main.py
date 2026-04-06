@@ -698,20 +698,30 @@ async def decide_kyc(verification_id: int, body: KycDecision, db: Session = Depe
     rec = db.query(AadhaarModel).filter(AadhaarModel.id == verification_id).first()
     if not rec:
         raise HTTPException(status_code=404, detail="not found")
+    
     if body.action == 'reject':
         rec.status = 'rejected'
+        db.add(rec)
+        db.flush()
         db.commit()
-        return {"status": rec.status}
+        return {"status": rec.status, "message": "KYC rejected"}
+    
     # approve => only mark verified on the user; NO tourist ID issuance here
-    rec.status = 'approved'
-    db.add(rec)
-    if rec.user_id:
-        u = db.query(UserModel).filter(UserModel.id == rec.user_id).first()
-        if u:
-            u.aadhaar_verified = True
-            db.add(u)
-    db.commit()
-    return {"status": rec.status}
+    if body.action == 'approve':
+        rec.status = 'approved'
+        db.add(rec)
+        db.flush()
+        
+        if rec.user_id:
+            u = db.query(UserModel).filter(UserModel.id == rec.user_id).first()
+            if u:
+                u.aadhaar_verified = True
+                db.add(u)
+        
+        db.commit()
+        return {"status": rec.status, "message": "KYC approved successfully"}
+    
+    raise HTTPException(status_code=400, detail="Invalid action")
 
 # Admin: upload tourist profile photo (like KYC capture but single image)
 @app.post("/api/admin/users/{user_id}/profile-photo")
