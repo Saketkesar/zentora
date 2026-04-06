@@ -249,7 +249,7 @@ function AdminPlansList() {
   useEffect(() => { load() }, [])
   const del = async (id: number) => {
     if (!confirm('Delete this plan?')) return
-    const r = await api(`/api/admin/itinerary-plans/${id}`, { method: 'DELETE' })
+    const r = await api(`/admin/itinerary-plans/${id}`, { method: 'DELETE' })
     if (r.ok) load()
   }
   return (

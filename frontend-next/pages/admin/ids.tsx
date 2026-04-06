@@ -28,7 +28,7 @@ export default function AdminIdsPage() {
   const [cameraError, setCameraError] = useState<string | null>(null)
 
   const loadUsers = async () => {
-    const res = await api(`/api/admin/users/verified${q ? `?q=${encodeURIComponent(q)}` : ''}`)
+    const res = await api(`/admin/users/verified${q ? `?q=${encodeURIComponent(q)}` : ''}`)
     if (res.ok) {
       const data = await res.json()
       setUsers(data.items || [])
@@ -36,7 +36,7 @@ export default function AdminIdsPage() {
   }
 
   const loadIds = async (userId?: number) => {
-    const res = await api(`/api/admin/tourist-ids${userId ? `?user_id=${userId}` : ''}`)
+    const res = await api(`/admin/tourist-ids${userId ? `?user_id=${userId}` : ''}`)
     if (res.ok) {
       const data = await res.json()
       setIds(data.items || [])
@@ -158,7 +158,7 @@ export default function AdminIdsPage() {
         })
       }
       
-      const res = await api(`/api/admin/users/${selected.id}/tourist-id`, {
+      const res = await api(`/admin/users/${selected.id}/tourist-id`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -185,7 +185,7 @@ export default function AdminIdsPage() {
     if (!confirm('Delete this Tourist ID?')) return
     setLoading(true)
     try {
-      const res = await api(`/api/admin/tourist-ids/${id}`, { method: 'DELETE' })
+      const res = await api(`/admin/tourist-ids/${id}`, { method: 'DELETE' })
       if (res.ok) { await loadIds(selected?.id || undefined); setToast('Tourist ID deleted'); setTimeout(()=>setToast(null), 2000) }
     } finally { setLoading(false) }
   }

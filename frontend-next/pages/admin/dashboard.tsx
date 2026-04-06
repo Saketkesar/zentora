@@ -309,7 +309,7 @@ function RecentIds() {
   useEffect(() => { load() }, [])
   const del = async (id: number) => {
     if (!confirm('Delete this Tourist ID?')) return
-    const r = await api(`/api/admin/tourist-ids/${id}`, { method: 'DELETE' })
+    const r = await api(`/admin/tourist-ids/${id}`, { method: 'DELETE' })
     if (r.ok) { load(); setToast('Tourist ID deleted'); setTimeout(()=>setToast(null), 2000) }
   }
   if (loading) return <div className="flex items-center gap-2 text-sm text-neutral-600"><Loader2 className="animate-spin" size={16} /> Loading…</div>

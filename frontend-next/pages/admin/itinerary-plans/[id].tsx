@@ -42,7 +42,7 @@ export default function AdminPlanView() {
   useEffect(() => {
     if (!id) return
     ;(async () => {
-      const r = await api(`/api/admin/itinerary-plans/${id}`)
+      const r = await api(`/admin/itinerary-plans/${id}`)
       if (r.ok) setPlan(await r.json())
     })()
   }, [id])

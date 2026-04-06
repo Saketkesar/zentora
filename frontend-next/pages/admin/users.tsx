@@ -121,7 +121,7 @@ export default function AdminUsers() {
                   <button
                     onClick={async ()=>{
                       if (!confirm('Delete latest Tourist ID for this user?')) return
-                      const r = await api(`/api/admin/users/${u.id}/tourist-id`, { method: 'DELETE' })
+                      const r = await api(`/admin/users/${u.id}/tourist-id`, { method: 'DELETE' })
                       if (r.ok) {
                         playSuccessBeep()
                         load(page)
@@ -139,7 +139,7 @@ export default function AdminUsers() {
                   <button
                     onClick={async ()=>{
                       if (!confirm('Delete RFID binding for this user?')) return
-                      const r = await api(`/api/admin/users/${u.id}/rfid-binding`, { method: 'DELETE' })
+                      const r = await api(`/admin/users/${u.id}/rfid-binding`, { method: 'DELETE' })
                       if (r.ok) {
                         playSuccessBeep()
                         load(page)
@@ -163,7 +163,7 @@ export default function AdminUsers() {
                 <button
                   onClick={async ()=>{
                     if (!confirm(`Delete user "${u.name}" and all linked data? This cannot be undone.`)) return
-                    const r = await api(`/api/admin/users/${u.id}`, { method: 'DELETE' })
+                    const r = await api(`/admin/users/${u.id}`, { method: 'DELETE' })
                     if (r.ok) {
                       playSuccessBeep()
                       load(page)

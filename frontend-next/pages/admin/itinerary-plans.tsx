@@ -116,7 +116,7 @@ export default function AdminItineraryPlans() {
 
   const remove = async (id: number) => {
     if (!confirm('Delete this plan?')) return
-    const r = await api(`/api/admin/itinerary-plans/${id}`, { method: 'DELETE' })
+    const r = await api(`/admin/itinerary-plans/${id}`, { method: 'DELETE' })
     if (r.ok) { await refresh() }
   }
 
